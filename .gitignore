@@ -1,0 +1,12 @@
+target/
+!.mvn/wrapper/maven-wrapper.jar
+.idea/
+*.iml
+.env
+.env.*
+!.env.example
+*.pem
+*.p12
+application-local.yml
+.DS_Store
+Thumbs.db
