@@ -20,3 +20,7 @@ curl http://localhost:8082/api/catalog/procedures
 ```
 
 Deberías ver un par de tipos de ejemplo (retiro de escombros, denuncia por ruido).
+
+## Git (EP1-19)
+
+`.gitignore` cubre `target/`, `.env` y secretos. Hay `.env.example` vacío de secretos.
