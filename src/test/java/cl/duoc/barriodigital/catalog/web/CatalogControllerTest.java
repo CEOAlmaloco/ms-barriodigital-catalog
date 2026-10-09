@@ -3,6 +3,7 @@ package cl.duoc.barriodigital.catalog.web;
 import cl.duoc.barriodigital.catalog.service.CatalogService;
 import cl.duoc.barriodigital.catalog.web.dto.CreateProcedureRequest;
 import cl.duoc.barriodigital.catalog.web.dto.ProcedureView;
+import cl.duoc.barriodigital.catalog.web.dto.UpdateProcedureRequest;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
@@ -20,6 +21,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -94,5 +96,54 @@ class CatalogControllerTest {
                                 """))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.message").value("El codigo value ya existe"));
+    }
+
+    @Test
+    void putDeAdminResponde200SinCambiarElCodigo() throws Exception {
+        when(catalogService.update(eq("bache"), any(UpdateProcedureRequest.class), eq("Admin"))).thenReturn(
+                new ProcedureView("bache", "Bache grave", false, 4, 4, LocalDate.parse("2026-10-09"))
+        );
+
+        mockMvc.perform(put("/api/catalog/procedures/bache")
+                        .header("X-User-Roles", "Admin")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"label":"Bache grave","active":false,"dailyQuota":4}
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.value").value("bache"))
+                .andExpect(jsonPath("$.label").value("Bache grave"))
+                .andExpect(jsonPath("$.active").value(false))
+                .andExpect(jsonPath("$.dailyQuota").value(4));
+    }
+
+    @Test
+    void putSinAdminResponde403() throws Exception {
+        when(catalogService.update(eq("bache"), any(UpdateProcedureRequest.class), eq("Vecino")))
+                .thenThrow(new ResponseStatusException(HttpStatus.FORBIDDEN, "Solo Admin puede editar tipos de tramite"));
+
+        mockMvc.perform(put("/api/catalog/procedures/bache")
+                        .header("X-User-Roles", "Vecino")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"label":"Bache grave","active":false,"dailyQuota":4}
+                                """))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.message").value("Solo Admin puede editar tipos de tramite"));
+    }
+
+    @Test
+    void putDeUnCodigoInexistenteResponde404() throws Exception {
+        when(catalogService.update(eq("no-esta"), any(UpdateProcedureRequest.class), eq("Admin")))
+                .thenThrow(new ResponseStatusException(HttpStatus.NOT_FOUND, "El tipo de tramite no existe"));
+
+        mockMvc.perform(put("/api/catalog/procedures/no-esta")
+                        .header("X-User-Roles", "Admin")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"label":"Nada","active":true,"dailyQuota":5}
+                                """))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.message").value("El tipo de tramite no existe"));
     }
 }

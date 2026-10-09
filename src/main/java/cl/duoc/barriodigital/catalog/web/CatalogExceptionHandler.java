@@ -11,7 +11,7 @@ import java.util.Map;
 
 /**
  * El cuerpo de error de Spring deja {@code message} vacío si no se rellena a mano.
- * El contrato de catálogo necesita ese texto en 400, 403 y 409.
+ * El contrato de catálogo necesita ese texto en 400, 403, 404 y 409.
  */
 @RestControllerAdvice
 public class CatalogExceptionHandler {

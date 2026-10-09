@@ -5,6 +5,7 @@ import cl.duoc.barriodigital.catalog.persistence.ProcedureTypeRepository;
 import cl.duoc.barriodigital.catalog.persistence.ProcedureTypeSeed;
 import cl.duoc.barriodigital.catalog.web.dto.CreateProcedureRequest;
 import cl.duoc.barriodigital.catalog.web.dto.ProcedureView;
+import cl.duoc.barriodigital.catalog.web.dto.UpdateProcedureRequest;
 import org.junit.jupiter.api.Test;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
@@ -14,8 +15,10 @@ import org.springframework.web.server.ResponseStatusException;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.util.List;
+import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -138,6 +141,61 @@ class CatalogServiceTest {
     void labelVacioEs400() {
         assertEquals(HttpStatus.BAD_REQUEST, statusOf(() ->
                 service.create(new CreateProcedureRequest("semaforo", "   ", true), "Admin")));
+    }
+
+    @Test
+    void adminEditaEtiquetaActivoYCupoSinCambiarElCodigo() {
+        LocalDate today = LocalDate.parse("2026-10-09");
+        ProcedureType bache = new ProcedureType("bache", "Bache en calle", true, 10, today);
+        when(repository.findById("bache")).thenReturn(Optional.of(bache));
+        when(repository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        ProcedureView updated = service.update(
+                " bache ",
+                new UpdateProcedureRequest(" Bache grave ", false, 4, "bache"),
+                "Admin"
+        );
+
+        assertEquals("bache", updated.value());
+        assertEquals("Bache grave", updated.label());
+        assertFalse(updated.active());
+        assertEquals(4, updated.dailyQuota());
+        assertEquals(4, updated.remainingQuota());
+        assertEquals(today, updated.quotaResetDate());
+    }
+
+    @Test
+    void tipoInexistenteResponde404() {
+        when(repository.findById("no-esta")).thenReturn(Optional.empty());
+
+        assertEquals(HttpStatus.NOT_FOUND, statusOf(() ->
+                service.update("no-esta", new UpdateProcedureRequest("Nada", true, 5, null), "Admin")));
+        verify(repository, never()).save(any());
+    }
+
+    @Test
+    void noSePuedeCambiarElValue() {
+        assertEquals(HttpStatus.BAD_REQUEST, statusOf(() ->
+                service.update("bache", new UpdateProcedureRequest("Bache", true, 5, "otro"), "Admin")));
+        verify(repository, never()).findById(any());
+    }
+
+    @Test
+    void edicionSinAdminResponde403() {
+        assertEquals(HttpStatus.FORBIDDEN, statusOf(() ->
+                service.update("bache", new UpdateProcedureRequest("Bache", true, 5, null), "Vecino")));
+        verify(repository, never()).findById(any());
+    }
+
+    @Test
+    void edicionSinEtiquetaActivoOCupoEs400() {
+        assertEquals(HttpStatus.BAD_REQUEST, statusOf(() ->
+                service.update("bache", new UpdateProcedureRequest("  ", true, 5, null), "Admin")));
+        assertEquals(HttpStatus.BAD_REQUEST, statusOf(() ->
+                service.update("bache", new UpdateProcedureRequest("Bache", null, 5, null), "Admin")));
+        assertEquals(HttpStatus.BAD_REQUEST, statusOf(() ->
+                service.update("bache", new UpdateProcedureRequest("Bache", true, 0, null), "Admin")));
+        verify(repository, never()).findById(any());
     }
 
     private HttpStatusCode statusOf(Runnable call) {
