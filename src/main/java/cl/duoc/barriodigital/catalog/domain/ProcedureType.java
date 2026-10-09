@@ -39,9 +39,13 @@ public class ProcedureType {
     }
 
     public ProcedureType(String value, String label, int dailyQuota, LocalDate quotaResetDate) {
+        this(value, label, true, dailyQuota, quotaResetDate);
+    }
+
+    public ProcedureType(String value, String label, boolean active, int dailyQuota, LocalDate quotaResetDate) {
         this.value = value;
         this.label = label;
-        this.active = true;
+        this.active = active;
         this.dailyQuota = dailyQuota;
         this.remainingQuota = dailyQuota;
         this.quotaResetDate = quotaResetDate;
