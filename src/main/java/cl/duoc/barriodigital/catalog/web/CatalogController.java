@@ -1,32 +1,26 @@
 package cl.duoc.barriodigital.catalog.web;
 
+import cl.duoc.barriodigital.catalog.service.CatalogService;
+import cl.duoc.barriodigital.catalog.web.dto.ProcedureView;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
-import java.util.Map;
 
-/**
- * Esqueleto EP1-25. El CRUD de tipos/cupos viene en EP2.
- */
+/** Tipos de trámite persistidos. El alta y la edición vienen en los issues siguientes. */
 @RestController
 @RequestMapping("/api/catalog")
 public class CatalogController {
 
+    private final CatalogService catalogService;
+
+    public CatalogController(CatalogService catalogService) {
+        this.catalogService = catalogService;
+    }
+
     @GetMapping("/procedures")
-    public List<Map<String, Object>> procedures() {
-        return List.of(
-                Map.of(
-                        "id", "proc-basura",
-                        "name", "Retiro de escombros",
-                        "dailyQuota", 10
-                ),
-                Map.of(
-                        "id", "proc-ruido",
-                        "name", "Denuncia por ruido",
-                        "dailyQuota", 20
-                )
-        );
+    public List<ProcedureView> procedures() {
+        return catalogService.listProcedures();
     }
 }

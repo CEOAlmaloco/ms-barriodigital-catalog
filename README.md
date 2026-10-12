@@ -21,7 +21,7 @@ La tabla es `procedure_types`. El SQL de referencia está en `src/main/resources
 
 Al arrancar, si falta una fila de esos seis códigos, se inserta. Si ya existe, no se toca.
 
-`GET /api/catalog/procedures` sigue devolviendo el ejemplo fijo del esqueleto. Pasarlo a leer esta tabla es EP1.5-10.
+`GET /api/catalog/procedures` lee `procedure_types` en cada llamada (EP1.5-10). No hay lista fija en el controlador: un tipo nuevo guardado en la tabla aparece en el siguiente GET sin reiniciar. El POST que lo crea es EP1.5-11.
 
 ## Arranque
 
