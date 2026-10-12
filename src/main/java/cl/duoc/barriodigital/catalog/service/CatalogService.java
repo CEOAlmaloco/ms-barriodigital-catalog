@@ -6,12 +6,14 @@ import cl.duoc.barriodigital.catalog.persistence.ProcedureTypeSeed;
 import cl.duoc.barriodigital.catalog.web.AdminCaller;
 import cl.duoc.barriodigital.catalog.web.dto.CreateProcedureRequest;
 import cl.duoc.barriodigital.catalog.web.dto.ProcedureView;
-import org.springframework.dao.DataIntegrityViolationException;
+import jakarta.persistence.EntityManager;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.sql.SQLException;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.util.List;
@@ -27,9 +29,11 @@ public class CatalogService {
     private static final Pattern VALUE_PATTERN = Pattern.compile("^[a-z0-9_-]{1,40}$");
 
     private final ProcedureTypeRepository repository;
+    private final EntityManager entityManager;
 
-    public CatalogService(ProcedureTypeRepository repository) {
+    public CatalogService(ProcedureTypeRepository repository, EntityManager entityManager) {
         this.repository = repository;
+        this.entityManager = entityManager;
     }
 
     public List<ProcedureView> listProcedures() {
@@ -55,18 +59,58 @@ public class CatalogService {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "El codigo value ya existe");
         }
 
+        ProcedureType type = new ProcedureType(
+                value,
+                label,
+                active,
+                ProcedureTypeSeed.INITIAL_DAILY_QUOTA,
+                LocalDate.now(ZoneOffset.UTC)
+        );
+        insertOnly(type);
+        return ProcedureView.from(type);
+    }
+
+    /**
+     * Inserta y fuerza el flush en esta transacción.
+     * persist, no merge: un value repetido choca con la clave y no pisa la fila.
+     */
+    @Transactional
+    public void insertOnly(ProcedureType type) {
         try {
-            ProcedureType saved = repository.save(new ProcedureType(
-                    value,
-                    label,
-                    active,
-                    ProcedureTypeSeed.INITIAL_DAILY_QUOTA,
-                    LocalDate.now(ZoneOffset.UTC)
-            ));
-            return ProcedureView.from(saved);
-        } catch (DataIntegrityViolationException ex) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "El codigo value ya existe");
+            entityManager.persist(type);
+            entityManager.flush();
+        } catch (RuntimeException ex) {
+            if (isDuplicateKey(ex)) {
+                throw new ResponseStatusException(HttpStatus.CONFLICT, "El codigo value ya existe");
+            }
+            throw ex;
         }
+    }
+
+    /** Solo la clave duplicada (ORA-00001 o SQLState 23505). El resto de errores de integridad sigue su curso. */
+    private static boolean isDuplicateKey(Throwable error) {
+        Throwable current = error;
+        while (current != null) {
+            if (current instanceof DuplicateKeyException) {
+                return true;
+            }
+            if (current instanceof SQLException sql && isUniqueViolation(sql)) {
+                return true;
+            }
+            current = current.getCause();
+        }
+        return false;
+    }
+
+    private static boolean isUniqueViolation(SQLException sql) {
+        SQLException current = sql;
+        while (current != null) {
+            if ("23505".equals(current.getSQLState()) || current.getErrorCode() == 1) {
+                return true;
+            }
+            current = current.getNextException();
+        }
+        return false;
     }
 
     private static String requireValue(String raw) {
