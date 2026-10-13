@@ -6,12 +6,14 @@ import cl.duoc.barriodigital.catalog.persistence.ProcedureTypeSeed;
 import cl.duoc.barriodigital.catalog.web.dto.CreateProcedureRequest;
 import cl.duoc.barriodigital.catalog.web.dto.ProcedureView;
 import cl.duoc.barriodigital.catalog.web.dto.UpdateProcedureRequest;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceException;
 import org.junit.jupiter.api.Test;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.sql.SQLException;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.util.List;
@@ -22,6 +24,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -31,7 +34,8 @@ import static org.mockito.Mockito.when;
 class CatalogServiceTest {
 
     private final ProcedureTypeRepository repository = mock(ProcedureTypeRepository.class);
-    private final CatalogService service = new CatalogService(repository);
+    private final EntityManager entityManager = mock(EntityManager.class);
+    private final CatalogService service = new CatalogService(repository, entityManager);
 
     @Test
     void listaLoQueHayEnLaTablaOrdenadoPorCodigo() {
@@ -65,9 +69,8 @@ class CatalogServiceTest {
     }
 
     @Test
-    void adminCreaElTipoYElSiguienteGetLoVePorqueQuedoEnLaTabla() {
+    void adminCreaElTipoConEtiquetaRecortadaYActivoPorDefecto() {
         when(repository.existsById("semaforo")).thenReturn(false);
-        when(repository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
 
         ProcedureView created = service.create(
                 new CreateProcedureRequest(" semaforo ", " Semáforo en mal estado ", null),
@@ -80,12 +83,13 @@ class CatalogServiceTest {
         assertEquals(ProcedureTypeSeed.INITIAL_DAILY_QUOTA, created.dailyQuota());
         assertEquals(ProcedureTypeSeed.INITIAL_DAILY_QUOTA, created.remainingQuota());
         assertEquals(LocalDate.now(ZoneOffset.UTC), created.quotaResetDate());
+        verify(entityManager).persist(any(ProcedureType.class));
+        verify(entityManager).flush();
     }
 
     @Test
     void activeFalsoSeGuardaApagado() {
         when(repository.existsById("verano")).thenReturn(false);
-        when(repository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
 
         ProcedureView created = service.create(
                 new CreateProcedureRequest("verano", "Feria de verano", false),
@@ -93,6 +97,7 @@ class CatalogServiceTest {
         );
 
         assertEquals(false, created.active());
+        verify(entityManager).persist(any(ProcedureType.class));
     }
 
     @Test
@@ -103,18 +108,37 @@ class CatalogServiceTest {
                 service.create(new CreateProcedureRequest("bache", "Otro bache", true), "Admin"));
 
         assertEquals(HttpStatus.CONFLICT, ex.getStatusCode());
-        verify(repository, never()).save(any());
+        verify(entityManager, never()).persist(any());
     }
 
     @Test
-    void choqueDeClaveEnLaBaseTambienEs409() {
+    void choqueDeClaveUnicaResponde409() {
         when(repository.existsById("bache")).thenReturn(false);
-        when(repository.save(any())).thenThrow(new DataIntegrityViolationException("pk"));
+        doThrow(new PersistenceException(new SQLException("unique", "23505")))
+                .when(entityManager).flush();
 
-        ResponseStatusException ex = assertThrows(ResponseStatusException.class, () ->
-                service.create(new CreateProcedureRequest("bache", "Bache", true), "ROLE_Admin"));
+        assertEquals(HttpStatus.CONFLICT, statusOf(() ->
+                service.create(new CreateProcedureRequest("bache", "Bache", true), "ROLE_Admin")));
+    }
 
-        assertEquals(HttpStatus.CONFLICT, ex.getStatusCode());
+    @Test
+    void choqueDeClaveOracleResponde409() {
+        when(repository.existsById("bache")).thenReturn(false);
+        doThrow(new PersistenceException(new SQLException("ORA-00001", "23000", 1)))
+                .when(entityManager).flush();
+
+        assertEquals(HttpStatus.CONFLICT, statusOf(() ->
+                service.create(new CreateProcedureRequest("bache", "Bache", true), "Admin")));
+    }
+
+    @Test
+    void otroErrorDeIntegridadNoSeDisfrazaDeDuplicado() {
+        when(repository.existsById("semaforo")).thenReturn(false);
+        doThrow(new PersistenceException(new SQLException("null", "23502")))
+                .when(entityManager).flush();
+
+        assertThrows(PersistenceException.class, () ->
+                service.create(new CreateProcedureRequest("semaforo", "Semáforo", true), "Admin"));
     }
 
     @Test
@@ -134,7 +158,7 @@ class CatalogServiceTest {
                 service.create(new CreateProcedureRequest("  ", "Semáforo", true), "Admin")));
         assertEquals(HttpStatus.BAD_REQUEST, statusOf(() ->
                 service.create(new CreateProcedureRequest("Semáforo", "Semáforo", true), "Admin")));
-        verify(repository, never()).save(any());
+        verify(entityManager, never()).persist(any());
     }
 
     @Test

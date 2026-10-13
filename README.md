@@ -31,7 +31,7 @@ Al arrancar, si falta una fila de esos seis códigos, se inserta. Si ya existe, 
 { "value": "semaforo", "label": "Semáforo en mal estado", "active": true }
 ```
 
-`active` es opcional y vale `true` si se omite. `value` va en minúsculas, números, guion o guion bajo, hasta 40 caracteres. Si ese código ya está en la tabla, responde **409**. `value` o `label` vacíos, o un `value` que no cumple el formato, responden **400**.
+`active` es opcional y vale `true` si se omite. `value` va en minúsculas, números, guion o guion bajo, hasta 40 caracteres. Si ese código ya está en la tabla, responde **409** y no modifica la fila. El alta es un insert: dos POST simultáneos con el mismo `value` no se pisan. `value` o `label` vacíos, o un `value` que no cumple el formato, responden **400**.
 
 El cupo no se manda en este POST. La fila nace con el mismo cupo inicial del seed (10) y `remaining_quota` igual a ese número. La respuesta es **201** con la misma forma que un ítem del GET.
 
