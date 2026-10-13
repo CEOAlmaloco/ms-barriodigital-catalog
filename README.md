@@ -17,7 +17,7 @@ La tabla es `procedure_types`. El SQL de referencia está en `src/main/resources
 | `active` | Si el tipo se ofrece. El seed lo deja en true. |
 | `daily_quota` | Cupo del día. El seed usa 10. |
 | `remaining_quota` | Cupo que queda. El seed lo iguala a `daily_quota`. |
-| `quota_reset_date` | Día del contador, en UTC. El reset perezoso es EP1.5-16. |
+| `quota_reset_date` | Día del contador, en UTC. No sale en el JSON. |
 
 Al arrancar, si falta una fila de esos seis códigos, se inserta. Si ya existe, no se toca.
 
@@ -44,6 +44,12 @@ El cupo no se manda en este POST. La fila nace con el mismo cupo inicial del see
 ```
 
 Los tres campos son obligatorios. `dailyQuota` es un entero de 1 o más. Lo ya usado en el día se conserva: si el cupo nuevo no alcanza para eso, `remainingQuota` queda en 0. La respuesta es **200** con la misma forma que un ítem del GET.
+
+## Cupo del día (EP1.5-16)
+
+`dailyQuota` lo cambia el Admin con el PUT de arriba. `remainingQuota` se repone solo: en el primer GET (o PUT) de un día nuevo, si `quota_reset_date` no es hoy en UTC, pasa a valer `dailyQuota` y se guarda la fecha. Un segundo uso el mismo día no vuelve a llenar el cupo. No hay job ni consulta a requests.
+
+El JSON de GET, POST y PUT trae `dailyQuota` y `remainingQuota`. `quotaResetDate` se queda en la tabla.
 
 ## Arranque
 

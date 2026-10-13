@@ -13,7 +13,6 @@ import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.web.server.ResponseStatusException;
 
-import java.time.LocalDate;
 import java.util.List;
 
 import static org.mockito.ArgumentMatchers.any;
@@ -37,7 +36,7 @@ class CatalogControllerTest {
     @Test
     void getProceduresDevuelveLosTiposPersistidos() throws Exception {
         when(catalogService.listProcedures()).thenReturn(List.of(
-                new ProcedureView("bache", "Bache en calle", true, 10, 10, LocalDate.parse("2026-10-08"))
+                new ProcedureView("bache", "Bache en calle", true, 10, 10)
         ));
 
         mockMvc.perform(get("/api/catalog/procedures"))
@@ -47,13 +46,13 @@ class CatalogControllerTest {
                 .andExpect(jsonPath("$[0].active").value(true))
                 .andExpect(jsonPath("$[0].dailyQuota").value(10))
                 .andExpect(jsonPath("$[0].remainingQuota").value(10))
-                .andExpect(jsonPath("$[0].quotaResetDate").value("2026-10-08"));
+                .andExpect(jsonPath("$[0].quotaResetDate").doesNotExist());
     }
 
     @Test
     void postDeAdminResponde201ConElTipoCreado() throws Exception {
         when(catalogService.create(any(CreateProcedureRequest.class), eq("Admin"))).thenReturn(
-                new ProcedureView("semaforo", "Semáforo en mal estado", true, 10, 10, LocalDate.parse("2026-10-09"))
+                new ProcedureView("semaforo", "Semáforo en mal estado", true, 10, 10)
         );
 
         mockMvc.perform(post("/api/catalog/procedures")
@@ -101,7 +100,7 @@ class CatalogControllerTest {
     @Test
     void putDeAdminResponde200SinCambiarElCodigo() throws Exception {
         when(catalogService.update(eq("bache"), any(UpdateProcedureRequest.class), eq("Admin"))).thenReturn(
-                new ProcedureView("bache", "Bache grave", false, 4, 4, LocalDate.parse("2026-10-09"))
+                new ProcedureView("bache", "Bache grave", false, 4, 4)
         );
 
         mockMvc.perform(put("/api/catalog/procedures/bache")

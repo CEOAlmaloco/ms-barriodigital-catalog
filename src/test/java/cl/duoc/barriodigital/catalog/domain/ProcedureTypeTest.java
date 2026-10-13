@@ -5,6 +5,8 @@ import org.junit.jupiter.api.Test;
 import java.time.LocalDate;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class ProcedureTypeTest {
 
@@ -32,5 +34,30 @@ class ProcedureTypeTest {
         assertEquals(3, type.getDailyQuota());
         assertEquals(0, type.getRemainingQuota());
         assertEquals("bache", type.getValue());
+    }
+
+    @Test
+    void elPrimerUsoDeUnDiaNuevoReponeElCupo() {
+        ProcedureType type = new ProcedureType("bache", "Bache en calle", 10, LocalDate.parse("2026-10-12"));
+        type.consume(8);
+
+        boolean changed = type.resetForToday(LocalDate.parse("2026-10-13"));
+
+        assertTrue(changed);
+        assertEquals(10, type.getRemainingQuota());
+        assertEquals(10, type.getDailyQuota());
+        assertEquals(LocalDate.parse("2026-10-13"), type.getQuotaResetDate());
+    }
+
+    @Test
+    void elMismoDiaNoReponeLoYaUsado() {
+        ProcedureType type = new ProcedureType("bache", "Bache en calle", 10, LocalDate.parse("2026-10-13"));
+        type.consume(4);
+
+        boolean changed = type.resetForToday(LocalDate.parse("2026-10-13"));
+
+        assertFalse(changed);
+        assertEquals(6, type.getRemainingQuota());
+        assertEquals(LocalDate.parse("2026-10-13"), type.getQuotaResetDate());
     }
 }

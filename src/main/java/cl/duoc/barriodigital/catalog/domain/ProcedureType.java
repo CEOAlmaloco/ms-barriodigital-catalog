@@ -87,6 +87,22 @@ public class ProcedureType {
         this.remainingQuota = Math.max(0, dailyQuota - used);
     }
 
+    /**
+     * Primer uso de un día nuevo: compara la fecha guardada con hoy y, si cambió,
+     * repone remainingQuota a dailyQuota. El mismo día no toca lo ya usado.
+     * No consulta a otros servicios.
+     *
+     * @return true si la fecha cambió y hay que persistir la fila
+     */
+    public boolean resetForToday(LocalDate today) {
+        if (today.equals(quotaResetDate)) {
+            return false;
+        }
+        this.remainingQuota = this.dailyQuota;
+        this.quotaResetDate = today;
+        return true;
+    }
+
     void consume(int used) {
         this.remainingQuota = Math.max(0, this.dailyQuota - used);
     }

@@ -15,8 +15,8 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.sql.SQLException;
+import java.time.Clock;
 import java.time.LocalDate;
-import java.time.ZoneOffset;
 import java.util.List;
 import java.util.regex.Pattern;
 
@@ -31,15 +31,24 @@ public class CatalogService {
 
     private final ProcedureTypeRepository repository;
     private final EntityManager entityManager;
+    private final Clock clock;
 
-    public CatalogService(ProcedureTypeRepository repository, EntityManager entityManager) {
+    public CatalogService(ProcedureTypeRepository repository, EntityManager entityManager, Clock clock) {
         this.repository = repository;
         this.entityManager = entityManager;
+        this.clock = clock;
     }
 
+    @Transactional
     public List<ProcedureView> listProcedures() {
+        LocalDate today = today();
         return repository.findAllByOrderByValueAsc().stream()
-                .map(ProcedureView::from)
+                .map(type -> {
+                    if (type.resetForToday(today)) {
+                        repository.save(type);
+                    }
+                    return ProcedureView.from(type);
+                })
                 .toList();
     }
 
@@ -65,7 +74,7 @@ public class CatalogService {
                 label,
                 active,
                 ProcedureTypeSeed.INITIAL_DAILY_QUOTA,
-                LocalDate.now(ZoneOffset.UTC)
+                today()
         );
         insertOnly(type);
         return ProcedureView.from(type);
@@ -133,8 +142,13 @@ public class CatalogService {
 
         ProcedureType current = repository.findById(value)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "El tipo de tramite no existe"));
+        current.resetForToday(today());
         current.updateDetails(label, body.active(), dailyQuota);
         return ProcedureView.from(repository.save(current));
+    }
+
+    private LocalDate today() {
+        return LocalDate.now(clock);
     }
 
     private static String requireValue(String raw) {
