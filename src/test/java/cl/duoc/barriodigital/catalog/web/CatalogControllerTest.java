@@ -1,18 +1,25 @@
 package cl.duoc.barriodigital.catalog.web;
 
 import cl.duoc.barriodigital.catalog.service.CatalogService;
+import cl.duoc.barriodigital.catalog.web.dto.CreateProcedureRequest;
 import cl.duoc.barriodigital.catalog.web.dto.ProcedureView;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDate;
 import java.util.List;
 
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -39,5 +46,53 @@ class CatalogControllerTest {
                 .andExpect(jsonPath("$[0].dailyQuota").value(10))
                 .andExpect(jsonPath("$[0].remainingQuota").value(10))
                 .andExpect(jsonPath("$[0].quotaResetDate").value("2026-10-08"));
+    }
+
+    @Test
+    void postDeAdminResponde201ConElTipoCreado() throws Exception {
+        when(catalogService.create(any(CreateProcedureRequest.class), eq("Admin"))).thenReturn(
+                new ProcedureView("semaforo", "Semáforo en mal estado", true, 10, 10, LocalDate.parse("2026-10-09"))
+        );
+
+        mockMvc.perform(post("/api/catalog/procedures")
+                        .header("X-User-Roles", "Admin")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"value":"semaforo","label":"Semáforo en mal estado","active":true}
+                                """))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.value").value("semaforo"))
+                .andExpect(jsonPath("$.label").value("Semáforo en mal estado"))
+                .andExpect(jsonPath("$.active").value(true));
+    }
+
+    @Test
+    void postSinAdminResponde403() throws Exception {
+        when(catalogService.create(any(CreateProcedureRequest.class), eq("Vecino")))
+                .thenThrow(new ResponseStatusException(HttpStatus.FORBIDDEN, "Solo Admin puede crear tipos de tramite"));
+
+        mockMvc.perform(post("/api/catalog/procedures")
+                        .header("X-User-Roles", "Vecino")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"value":"semaforo","label":"Semáforo en mal estado"}
+                                """))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.message").value("Solo Admin puede crear tipos de tramite"));
+    }
+
+    @Test
+    void postDuplicadoResponde409() throws Exception {
+        when(catalogService.create(any(CreateProcedureRequest.class), eq("Admin")))
+                .thenThrow(new ResponseStatusException(HttpStatus.CONFLICT, "El codigo value ya existe"));
+
+        mockMvc.perform(post("/api/catalog/procedures")
+                        .header("X-User-Roles", "Admin")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"value":"bache","label":"Bache"}
+                                """))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.message").value("El codigo value ya existe"));
     }
 }

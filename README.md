@@ -21,7 +21,19 @@ La tabla es `procedure_types`. El SQL de referencia está en `src/main/resources
 
 Al arrancar, si falta una fila de esos seis códigos, se inserta. Si ya existe, no se toca.
 
-`GET /api/catalog/procedures` lee `procedure_types` en cada llamada (EP1.5-10). No hay lista fija en el controlador: un tipo nuevo guardado en la tabla aparece en el siguiente GET sin reiniciar. El POST que lo crea es EP1.5-11.
+`GET /api/catalog/procedures` lee `procedure_types` en cada llamada (EP1.5-10). No hay lista fija en el controlador: un tipo nuevo guardado en la tabla aparece en el siguiente GET sin reiniciar.
+
+## Alta (EP1.5-11)
+
+`POST /api/catalog/procedures` crea un tipo. Solo Admin: el header `X-User-Roles` tiene que traer `Admin` (lo pone el BFF después de validar el JWT). Otro rol, o sin header, responde **403**.
+
+```json
+{ "value": "semaforo", "label": "Semáforo en mal estado", "active": true }
+```
+
+`active` es opcional y vale `true` si se omite. `value` va en minúsculas, números, guion o guion bajo, hasta 40 caracteres. Si ese código ya está en la tabla, responde **409** y no modifica la fila. El alta es un insert: dos POST simultáneos con el mismo `value` no se pisan. `value` o `label` vacíos, o un `value` que no cumple el formato, responden **400**.
+
+El cupo no se manda en este POST. La fila nace con el mismo cupo inicial del seed (10) y `remaining_quota` igual a ese número. La respuesta es **201** con la misma forma que un ítem del GET.
 
 ## Arranque
 
