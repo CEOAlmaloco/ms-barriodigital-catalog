@@ -35,6 +35,16 @@ Al arrancar, si falta una fila de esos seis códigos, se inserta. Si ya existe, 
 
 El cupo no se manda en este POST. La fila nace con el mismo cupo inicial del seed (10) y `remaining_quota` igual a ese número. La respuesta es **201** con la misma forma que un ítem del GET.
 
+## Edición (EP1.5-12)
+
+`PUT /api/catalog/procedures/{value}` reemplaza etiqueta, activo y cupo. El código va en la URL y no se puede cambiar: si el cuerpo trae otro `value`, responde **400**. Solo Admin, con el mismo header `X-User-Roles`. Otro rol responde **403**. Si el código no está en la tabla, **404**.
+
+```json
+{ "label": "Semáforo intermitente", "active": false, "dailyQuota": 4 }
+```
+
+Los tres campos son obligatorios. `dailyQuota` es un entero de 1 o más. Lo ya usado en el día se conserva: si el cupo nuevo no alcanza para eso, `remainingQuota` queda en 0. La respuesta es **200** con la misma forma que un ítem del GET.
+
 ## Arranque
 
 1. Copiá `.env.example` a `.env` y completá Oracle (podés copiar los valores de requests).

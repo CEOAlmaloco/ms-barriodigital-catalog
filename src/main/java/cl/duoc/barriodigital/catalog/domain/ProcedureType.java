@@ -74,4 +74,20 @@ public class ProcedureType {
     public LocalDate getQuotaResetDate() {
         return quotaResetDate;
     }
+
+    /**
+     * Cambia lo editable. El value no se toca.
+     * Lo ya usado hoy (cupo menos lo que queda) se conserva: si el cupo nuevo no alcanza, queda en 0.
+     */
+    public void updateDetails(String label, boolean active, int dailyQuota) {
+        int used = Math.max(0, this.dailyQuota - this.remainingQuota);
+        this.label = label;
+        this.active = active;
+        this.dailyQuota = dailyQuota;
+        this.remainingQuota = Math.max(0, dailyQuota - used);
+    }
+
+    void consume(int used) {
+        this.remainingQuota = Math.max(0, this.dailyQuota - used);
+    }
 }

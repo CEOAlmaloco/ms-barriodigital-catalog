@@ -6,6 +6,7 @@ import cl.duoc.barriodigital.catalog.persistence.ProcedureTypeSeed;
 import cl.duoc.barriodigital.catalog.web.AdminCaller;
 import cl.duoc.barriodigital.catalog.web.dto.CreateProcedureRequest;
 import cl.duoc.barriodigital.catalog.web.dto.ProcedureView;
+import cl.duoc.barriodigital.catalog.web.dto.UpdateProcedureRequest;
 import jakarta.persistence.EntityManager;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.http.HttpStatus;
@@ -113,6 +114,29 @@ public class CatalogService {
         return false;
     }
 
+    @Transactional
+    public ProcedureView update(String pathValue, UpdateProcedureRequest body, String rolesHeader) {
+        if (!AdminCaller.isAdmin(rolesHeader)) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Solo Admin puede editar tipos de tramite");
+        }
+        if (body == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "La etiqueta es obligatoria");
+        }
+
+        String value = pathValue == null ? "" : pathValue.trim();
+        rejectValueChange(value, body.value());
+        String label = requireLabel(body.label());
+        if (body.active() == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "El campo active es obligatorio");
+        }
+        int dailyQuota = requireDailyQuota(body.dailyQuota());
+
+        ProcedureType current = repository.findById(value)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "El tipo de tramite no existe"));
+        current.updateDetails(label, body.active(), dailyQuota);
+        return ProcedureView.from(repository.save(current));
+    }
+
     private static String requireValue(String raw) {
         if (raw == null || raw.isBlank()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "El codigo value es obligatorio");
@@ -136,5 +160,24 @@ public class CatalogService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "La etiqueta supera los 120 caracteres");
         }
         return label;
+    }
+
+    private static int requireDailyQuota(Integer dailyQuota) {
+        if (dailyQuota == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "El cupo diario es obligatorio");
+        }
+        if (dailyQuota < 1) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "El cupo diario debe ser al menos 1");
+        }
+        return dailyQuota;
+    }
+
+    private static void rejectValueChange(String pathValue, String bodyValue) {
+        if (bodyValue == null || bodyValue.isBlank()) {
+            return;
+        }
+        if (!pathValue.equals(bodyValue.trim())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "No se puede cambiar el codigo value");
+        }
     }
 }
