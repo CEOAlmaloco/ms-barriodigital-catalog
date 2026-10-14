@@ -121,6 +121,32 @@ public class ProcedureType {
         return true;
     }
 
+    /**
+     * Descuenta 1. Sin límite (dailyQuota null) no toca el contador y cuenta como éxito.
+     * Si no queda cupo, no cambia el contador.
+     *
+     * @return true si la reserva se acepta
+     */
+    public boolean reserveOne() {
+        if (dailyQuota == null) {
+            return true;
+        }
+        if (remainingQuota == null || remainingQuota <= 0) {
+            return false;
+        }
+        remainingQuota--;
+        return true;
+    }
+
+    /** Devuelve 1 sin pasar de dailyQuota. Sin límite no hace nada. Una compensación repetida no infla el cupo. */
+    public void releaseOne() {
+        if (dailyQuota == null) {
+            return;
+        }
+        int available = remainingQuota == null ? 0 : remainingQuota;
+        remainingQuota = Math.min(dailyQuota, available + 1);
+    }
+
     void consume(int used) {
         this.remainingQuota = Math.max(0, this.dailyQuota - used);
     }

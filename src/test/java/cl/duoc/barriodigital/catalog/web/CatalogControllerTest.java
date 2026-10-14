@@ -145,4 +145,38 @@ class CatalogControllerTest {
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.message").value("El tipo de tramite no existe"));
     }
+
+    @Test
+    void reserveResponde200SinPedirRol() throws Exception {
+        when(catalogService.reserve("bache")).thenReturn(
+                new ProcedureView("bache", "Bache en calle", true, 10, 9)
+        );
+
+        mockMvc.perform(post("/api/catalog/procedures/bache/reserve"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.value").value("bache"))
+                .andExpect(jsonPath("$.remainingQuota").value(9))
+                .andExpect(jsonPath("$.quotaResetDate").doesNotExist());
+    }
+
+    @Test
+    void reserveSinCupoResponde409() throws Exception {
+        when(catalogService.reserve("bache"))
+                .thenThrow(new ResponseStatusException(HttpStatus.CONFLICT, "No queda cupo para este tipo de tramite"));
+
+        mockMvc.perform(post("/api/catalog/procedures/bache/reserve"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.message").value("No queda cupo para este tipo de tramite"));
+    }
+
+    @Test
+    void releaseResponde200YReponeElCupo() throws Exception {
+        when(catalogService.release("bache")).thenReturn(
+                new ProcedureView("bache", "Bache en calle", true, 10, 8)
+        );
+
+        mockMvc.perform(post("/api/catalog/procedures/bache/release"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.remainingQuota").value(8));
+    }
 }

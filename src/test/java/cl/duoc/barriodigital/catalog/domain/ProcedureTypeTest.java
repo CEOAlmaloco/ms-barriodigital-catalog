@@ -72,4 +72,38 @@ class ProcedureTypeTest {
         assertNull(type.getDailyQuota());
         assertNull(type.getRemainingQuota());
     }
+
+    @Test
+    void reservarDescuentaUnoYEnCeroNoPasaANegativo() {
+        ProcedureType type = new ProcedureType("bache", "Bache en calle", 1, LocalDate.parse("2026-10-13"));
+
+        assertTrue(type.reserveOne());
+        assertEquals(0, type.getRemainingQuota());
+        assertFalse(type.reserveOne());
+        assertEquals(0, type.getRemainingQuota());
+    }
+
+    @Test
+    void reservarSinLimiteNoDescuenta() {
+        ProcedureType type = new ProcedureType("bache", "Bache en calle", null, LocalDate.parse("2026-10-13"));
+
+        assertTrue(type.reserveOne());
+        assertNull(type.getRemainingQuota());
+        type.releaseOne();
+        assertNull(type.getDailyQuota());
+        assertNull(type.getRemainingQuota());
+    }
+
+    @Test
+    void liberarSumaUnoSinPasarDelCupoDiario() {
+        ProcedureType type = new ProcedureType("bache", "Bache en calle", 2, LocalDate.parse("2026-10-13"));
+        type.consume(2);
+
+        type.releaseOne();
+        assertEquals(1, type.getRemainingQuota());
+        type.releaseOne();
+        assertEquals(2, type.getRemainingQuota());
+        type.releaseOne();
+        assertEquals(2, type.getRemainingQuota());
+    }
 }

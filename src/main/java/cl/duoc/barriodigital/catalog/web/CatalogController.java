@@ -49,4 +49,14 @@ public class CatalogController {
     ) {
         return catalogService.update(value, body, roles);
     }
+
+    @PostMapping("/procedures/{value}/reserve")
+    public ProcedureView reserve(@PathVariable String value) {
+        return catalogService.reserve(value);
+    }
+
+    @PostMapping("/procedures/{value}/release")
+    public ProcedureView release(@PathVariable String value) {
+        return catalogService.release(value);
+    }
 }
