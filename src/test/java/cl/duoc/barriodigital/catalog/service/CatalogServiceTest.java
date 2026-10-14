@@ -2,7 +2,6 @@ package cl.duoc.barriodigital.catalog.service;
 
 import cl.duoc.barriodigital.catalog.domain.ProcedureType;
 import cl.duoc.barriodigital.catalog.persistence.ProcedureTypeRepository;
-import cl.duoc.barriodigital.catalog.persistence.ProcedureTypeSeed;
 import cl.duoc.barriodigital.catalog.web.dto.CreateProcedureRequest;
 import cl.duoc.barriodigital.catalog.web.dto.ProcedureView;
 import cl.duoc.barriodigital.catalog.web.dto.UpdateProcedureRequest;
@@ -14,6 +13,8 @@ import org.springframework.http.HttpStatusCode;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.sql.SQLException;
+import java.time.Clock;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.util.List;
@@ -21,6 +22,7 @@ import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -33,9 +35,12 @@ import static org.mockito.Mockito.when;
 
 class CatalogServiceTest {
 
+    private static final Clock CLOCK = Clock.fixed(Instant.parse("2026-10-13T12:00:00Z"), ZoneOffset.UTC);
+    private static final LocalDate TODAY = LocalDate.parse("2026-10-13");
+
     private final ProcedureTypeRepository repository = mock(ProcedureTypeRepository.class);
     private final EntityManager entityManager = mock(EntityManager.class);
-    private final CatalogService service = new CatalogService(repository, entityManager);
+    private final CatalogService service = new CatalogService(repository, entityManager, CLOCK);
 
     @Test
     void listaLoQueHayEnLaTablaOrdenadoPorCodigo() {
@@ -80,9 +85,8 @@ class CatalogServiceTest {
         assertEquals("semaforo", created.value());
         assertEquals("Semáforo en mal estado", created.label());
         assertTrue(created.active());
-        assertEquals(ProcedureTypeSeed.INITIAL_DAILY_QUOTA, created.dailyQuota());
-        assertEquals(ProcedureTypeSeed.INITIAL_DAILY_QUOTA, created.remainingQuota());
-        assertEquals(LocalDate.now(ZoneOffset.UTC), created.quotaResetDate());
+        assertNull(created.dailyQuota());
+        assertNull(created.remainingQuota());
         verify(entityManager).persist(any(ProcedureType.class));
         verify(entityManager).flush();
     }
@@ -169,8 +173,7 @@ class CatalogServiceTest {
 
     @Test
     void adminEditaEtiquetaActivoYCupoSinCambiarElCodigo() {
-        LocalDate today = LocalDate.parse("2026-10-09");
-        ProcedureType bache = new ProcedureType("bache", "Bache en calle", true, 10, today);
+        ProcedureType bache = new ProcedureType("bache", "Bache en calle", true, 10, TODAY);
         when(repository.findById("bache")).thenReturn(Optional.of(bache));
         when(repository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -185,7 +188,23 @@ class CatalogServiceTest {
         assertFalse(updated.active());
         assertEquals(4, updated.dailyQuota());
         assertEquals(4, updated.remainingQuota());
-        assertEquals(today, updated.quotaResetDate());
+        assertEquals(TODAY, bache.getQuotaResetDate());
+    }
+
+    @Test
+    void unPutSinCupoDejaElTipoSinLimite() {
+        ProcedureType bache = new ProcedureType("bache", "Bache en calle", true, 10, TODAY);
+        when(repository.findById("bache")).thenReturn(Optional.of(bache));
+        when(repository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        ProcedureView updated = service.update(
+                "bache",
+                new UpdateProcedureRequest("Bache en calle", true, null, null),
+                "Admin"
+        );
+
+        assertNull(updated.dailyQuota());
+        assertNull(updated.remainingQuota());
     }
 
     @Test

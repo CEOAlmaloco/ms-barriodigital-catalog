@@ -2,16 +2,13 @@ package cl.duoc.barriodigital.catalog.web.dto;
 
 import cl.duoc.barriodigital.catalog.domain.ProcedureType;
 
-import java.time.LocalDate;
-
-/** Lo que ve el cliente en GET /api/catalog/procedures. */
+/** Lo que ve el cliente. quotaResetDate queda en la tabla y no se serializa. */
 public record ProcedureView(
         String value,
         String label,
         boolean active,
-        int dailyQuota,
-        int remainingQuota,
-        LocalDate quotaResetDate
+        Integer dailyQuota,
+        Integer remainingQuota
 ) {
     public static ProcedureView from(ProcedureType type) {
         return new ProcedureView(
@@ -19,8 +16,7 @@ public record ProcedureView(
                 type.getLabel(),
                 type.isActive(),
                 type.getDailyQuota(),
-                type.getRemainingQuota(),
-                type.getQuotaResetDate()
+                type.getRemainingQuota()
         );
     }
 }

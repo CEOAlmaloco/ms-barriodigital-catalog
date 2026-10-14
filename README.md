@@ -15,9 +15,9 @@ La tabla es `procedure_types`. El SQL de referencia está en `src/main/resources
 | `value` | Código (`bache`, `alumbrado`, `basura`, `agua`, `ruido`, `otro`). Es la clave y no se cambia. |
 | `label` | Texto visible. |
 | `active` | Si el tipo se ofrece. El seed lo deja en true. |
-| `daily_quota` | Cupo del día. El seed usa 10. |
-| `remaining_quota` | Cupo que queda. El seed lo iguala a `daily_quota`. |
-| `quota_reset_date` | Día del contador, en UTC. El reset perezoso es EP1.5-16. |
+| `daily_quota` | Cupo del día. Null es sin límite. El seed y el POST lo dejan en null. |
+| `remaining_quota` | Cupo que queda. Null si no hay límite. |
+| `quota_reset_date` | Día del contador, en America/Santiago. No sale en el JSON. |
 
 Al arrancar, si falta una fila de esos seis códigos, se inserta. Si ya existe, no se toca.
 
@@ -33,7 +33,7 @@ Al arrancar, si falta una fila de esos seis códigos, se inserta. Si ya existe, 
 
 `active` es opcional y vale `true` si se omite. `value` va en minúsculas, números, guion o guion bajo, hasta 40 caracteres. Si ese código ya está en la tabla, responde **409** y no modifica la fila. El alta es un insert: dos POST simultáneos con el mismo `value` no se pisan. `value` o `label` vacíos, o un `value` que no cumple el formato, responden **400**.
 
-El cupo no se manda en este POST. La fila nace con el mismo cupo inicial del seed (10) y `remaining_quota` igual a ese número. La respuesta es **201** con la misma forma que un ítem del GET.
+El cupo no se manda en este POST. La fila nace con `daily_quota` y `remaining_quota` en null: sin límite, hasta que el Admin lo ponga con el PUT. La respuesta es **201** con la misma forma que un ítem del GET.
 
 ## Edición (EP1.5-12)
 
@@ -43,7 +43,13 @@ El cupo no se manda en este POST. La fila nace con el mismo cupo inicial del see
 { "label": "Semáforo intermitente", "active": false, "dailyQuota": 4 }
 ```
 
-Los tres campos son obligatorios. `dailyQuota` es un entero de 1 o más. Lo ya usado en el día se conserva: si el cupo nuevo no alcanza para eso, `remainingQuota` queda en 0. La respuesta es **200** con la misma forma que un ítem del GET.
+`label` y `active` son obligatorios. `dailyQuota` es opcional: si no viene, el tipo pasa a sin límite (`null`). Si viene, es un entero de 1 o más. Lo ya usado en el día se conserva cuando había límite: si el cupo nuevo no alcanza para eso, `remainingQuota` queda en 0. El frontend tiene que mandar siempre `dailyQuota` cuando quiere conservar el límite; si lo omite, lo saca. La respuesta es **200** con la misma forma que un ítem del GET.
+
+## Cupo del día (EP1.5-16)
+
+`dailyQuota` lo cambia el Admin con el PUT de arriba. Null es sin límite y `reserve` no descuenta ni responde 409. Si hay número, `remainingQuota` se repone solo: en el primer GET (o PUT) de un día nuevo, si `quota_reset_date` no es hoy en America/Santiago, pasa a valer `dailyQuota` y se guarda la fecha. Un segundo uso el mismo día no vuelve a llenar el cupo. No hay job ni consulta a requests.
+
+El JSON de GET, POST y PUT trae `dailyQuota` y `remainingQuota`. `quotaResetDate` se queda en la tabla.
 
 ## Arranque
 
@@ -61,7 +67,14 @@ En el log tiene que aparecer `Oracle OK: pool conectado` y `Catalogo: seed de ti
 curl http://localhost:8082/actuator/health
 ```
 
-En Oracle:
+Si la tabla ya existía con `daily_quota` y `remaining_quota` en NOT NULL, Hibernate no se los saca. Hay que correrlo una vez en Oracle:
+
+```sql
+ALTER TABLE procedure_types MODIFY (daily_quota NULL);
+ALTER TABLE procedure_types MODIFY (remaining_quota NULL);
+```
+
+Las filas que el seed viejo dejó en 10 siguen en 10. Un tipo nuevo, o un PUT sin `dailyQuota`, queda sin límite.
 
 ```sql
 SELECT value, label, active, daily_quota, remaining_quota, quota_reset_date

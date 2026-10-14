@@ -1,8 +1,8 @@
 package cl.duoc.barriodigital.catalog.service;
 
+import cl.duoc.barriodigital.catalog.config.ClockConfig;
 import cl.duoc.barriodigital.catalog.domain.ProcedureType;
 import cl.duoc.barriodigital.catalog.persistence.ProcedureTypeRepository;
-import cl.duoc.barriodigital.catalog.persistence.ProcedureTypeSeed;
 import cl.duoc.barriodigital.catalog.web.dto.CreateProcedureRequest;
 import cl.duoc.barriodigital.catalog.web.dto.ProcedureView;
 import org.junit.jupiter.api.BeforeEach;
@@ -31,7 +31,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @DataJpaTest
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.ANY)
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
-@Import(CatalogService.class)
+@Import({CatalogService.class, ClockConfig.class})
 @TestPropertySource(properties = {
         "spring.jpa.hibernate.ddl-auto=create-drop",
         "spring.datasource.driver-class-name=org.h2.Driver",
@@ -58,7 +58,7 @@ class CatalogCreatePersistenceTest {
                 "semaforo",
                 "Nombre nuevo",
                 false,
-                ProcedureTypeSeed.INITIAL_DAILY_QUOTA,
+                null,
                 LocalDate.now(ZoneOffset.UTC)
         );
         ResponseStatusException ex = assertThrows(ResponseStatusException.class, () -> service.insertOnly(repetido));
