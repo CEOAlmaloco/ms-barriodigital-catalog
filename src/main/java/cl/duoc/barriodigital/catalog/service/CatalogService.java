@@ -140,6 +140,38 @@ public class CatalogService {
         return ProcedureView.from(repository.save(current));
     }
 
+    /**
+     * Uso interno del BFF. No mira roles.
+     * Primero el reset del día, después descuenta 1. El candado de la fila evita dos descuentos a la vez.
+     * Sin límite responde 200 y no descuenta.
+     */
+    @Transactional
+    public ProcedureView reserve(String pathValue) {
+        ProcedureType current = lock(pathValue);
+        current.resetForToday(today());
+        if (!current.reserveOne()) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "No queda cupo para este tipo de tramite");
+        }
+        return ProcedureView.from(repository.save(current));
+    }
+
+    /**
+     * Compensación interna. Suma 1 sin pasar de dailyQuota. Sin límite no cambia nada.
+     * Nunca responde 409.
+     */
+    @Transactional
+    public ProcedureView release(String pathValue) {
+        ProcedureType current = lock(pathValue);
+        current.releaseOne();
+        return ProcedureView.from(repository.save(current));
+    }
+
+    private ProcedureType lock(String pathValue) {
+        String value = pathValue == null ? "" : pathValue.trim();
+        return repository.findByValueForUpdate(value)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "El tipo de tramite no existe"));
+    }
+
     private LocalDate today() {
         return LocalDate.now(clock);
     }

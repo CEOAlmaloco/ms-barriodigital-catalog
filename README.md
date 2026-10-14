@@ -51,6 +51,19 @@ El cupo no se manda en este POST. La fila nace con `daily_quota` y `remaining_qu
 
 El JSON de GET, POST y PUT trae `dailyQuota` y `remainingQuota`. `quotaResetDate` se queda en la tabla.
 
+## Reservar y liberar (EP1.5-17)
+
+El BFF llama estos dos POST. No llevan body y no miran `X-User-Roles`: catalog confía en la red interna.
+
+```
+POST /api/catalog/procedures/{value}/reserve
+POST /api/catalog/procedures/{value}/release
+```
+
+`reserve` aplica el reset del día y después descuenta 1. Si después del reset no queda cupo, responde **409** y no deja el contador en negativo. Si `dailyQuota` es null (sin límite), responde **200** y no descuenta. `release` suma 1 sin pasar de `dailyQuota` (una compensación repetida no infla el cupo) y nunca responde 409; sin límite tampoco cambia el contador. Si el código no existe, **404**.
+
+Los dos corren en una transacción con candado de escritura sobre la fila, así dos reservas a la vez no descuentan el mismo cupo. La respuesta **200** tiene la misma forma que un ítem del GET.
+
 ## Arranque
 
 1. Copiá `.env.example` a `.env` y completá Oracle (podés copiar los valores de requests).
