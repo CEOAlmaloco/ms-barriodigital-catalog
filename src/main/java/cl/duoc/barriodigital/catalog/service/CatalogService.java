@@ -2,7 +2,6 @@ package cl.duoc.barriodigital.catalog.service;
 
 import cl.duoc.barriodigital.catalog.domain.ProcedureType;
 import cl.duoc.barriodigital.catalog.persistence.ProcedureTypeRepository;
-import cl.duoc.barriodigital.catalog.persistence.ProcedureTypeSeed;
 import cl.duoc.barriodigital.catalog.web.AdminCaller;
 import cl.duoc.barriodigital.catalog.web.dto.CreateProcedureRequest;
 import cl.duoc.barriodigital.catalog.web.dto.ProcedureView;
@@ -69,13 +68,7 @@ public class CatalogService {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "El codigo value ya existe");
         }
 
-        ProcedureType type = new ProcedureType(
-                value,
-                label,
-                active,
-                ProcedureTypeSeed.INITIAL_DAILY_QUOTA,
-                today()
-        );
+        ProcedureType type = new ProcedureType(value, label, active, null, today());
         insertOnly(type);
         return ProcedureView.from(type);
     }
@@ -138,7 +131,7 @@ public class CatalogService {
         if (body.active() == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "El campo active es obligatorio");
         }
-        int dailyQuota = requireDailyQuota(body.dailyQuota());
+        Integer dailyQuota = optionalDailyQuota(body.dailyQuota());
 
         ProcedureType current = repository.findById(value)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "El tipo de tramite no existe"));
@@ -176,9 +169,10 @@ public class CatalogService {
         return label;
     }
 
-    private static int requireDailyQuota(Integer dailyQuota) {
+    /** Null es sin límite. Un número, si viene, tiene que ser 1 o más. */
+    private static Integer optionalDailyQuota(Integer dailyQuota) {
         if (dailyQuota == null) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "El cupo diario es obligatorio");
+            return null;
         }
         if (dailyQuota < 1) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "El cupo diario debe ser al menos 1");

@@ -2,7 +2,6 @@ package cl.duoc.barriodigital.catalog.service;
 
 import cl.duoc.barriodigital.catalog.domain.ProcedureType;
 import cl.duoc.barriodigital.catalog.persistence.ProcedureTypeRepository;
-import cl.duoc.barriodigital.catalog.persistence.ProcedureTypeSeed;
 import cl.duoc.barriodigital.catalog.web.dto.CreateProcedureRequest;
 import cl.duoc.barriodigital.catalog.web.dto.ProcedureView;
 import cl.duoc.barriodigital.catalog.web.dto.UpdateProcedureRequest;
@@ -23,6 +22,7 @@ import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -85,8 +85,8 @@ class CatalogServiceTest {
         assertEquals("semaforo", created.value());
         assertEquals("Semáforo en mal estado", created.label());
         assertTrue(created.active());
-        assertEquals(ProcedureTypeSeed.INITIAL_DAILY_QUOTA, created.dailyQuota());
-        assertEquals(ProcedureTypeSeed.INITIAL_DAILY_QUOTA, created.remainingQuota());
+        assertNull(created.dailyQuota());
+        assertNull(created.remainingQuota());
         verify(entityManager).persist(any(ProcedureType.class));
         verify(entityManager).flush();
     }
@@ -189,6 +189,22 @@ class CatalogServiceTest {
         assertEquals(4, updated.dailyQuota());
         assertEquals(4, updated.remainingQuota());
         assertEquals(TODAY, bache.getQuotaResetDate());
+    }
+
+    @Test
+    void unPutSinCupoDejaElTipoSinLimite() {
+        ProcedureType bache = new ProcedureType("bache", "Bache en calle", true, 10, TODAY);
+        when(repository.findById("bache")).thenReturn(Optional.of(bache));
+        when(repository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        ProcedureView updated = service.update(
+                "bache",
+                new UpdateProcedureRequest("Bache en calle", true, null, null),
+                "Admin"
+        );
+
+        assertNull(updated.dailyQuota());
+        assertNull(updated.remainingQuota());
     }
 
     @Test

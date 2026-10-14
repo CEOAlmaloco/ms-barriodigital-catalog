@@ -3,7 +3,6 @@ package cl.duoc.barriodigital.catalog.service;
 import cl.duoc.barriodigital.catalog.config.ClockConfig;
 import cl.duoc.barriodigital.catalog.domain.ProcedureType;
 import cl.duoc.barriodigital.catalog.persistence.ProcedureTypeRepository;
-import cl.duoc.barriodigital.catalog.persistence.ProcedureTypeSeed;
 import cl.duoc.barriodigital.catalog.web.dto.CreateProcedureRequest;
 import cl.duoc.barriodigital.catalog.web.dto.ProcedureView;
 import org.junit.jupiter.api.BeforeEach;
@@ -59,7 +58,7 @@ class CatalogCreatePersistenceTest {
                 "semaforo",
                 "Nombre nuevo",
                 false,
-                ProcedureTypeSeed.INITIAL_DAILY_QUOTA,
+                null,
                 LocalDate.now(ZoneOffset.UTC)
         );
         ResponseStatusException ex = assertThrows(ResponseStatusException.class, () -> service.insertOnly(repetido));

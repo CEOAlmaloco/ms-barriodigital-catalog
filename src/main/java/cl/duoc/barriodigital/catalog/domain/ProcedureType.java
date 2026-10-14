@@ -25,11 +25,11 @@ public class ProcedureType {
     @Column(nullable = false)
     private boolean active;
 
-    @Column(name = "daily_quota", nullable = false)
-    private int dailyQuota;
+    @Column(name = "daily_quota")
+    private Integer dailyQuota;
 
-    @Column(name = "remaining_quota", nullable = false)
-    private int remainingQuota;
+    @Column(name = "remaining_quota")
+    private Integer remainingQuota;
 
     @Column(name = "quota_reset_date", nullable = false)
     private LocalDate quotaResetDate;
@@ -38,11 +38,11 @@ public class ProcedureType {
         // JPA
     }
 
-    public ProcedureType(String value, String label, int dailyQuota, LocalDate quotaResetDate) {
+    public ProcedureType(String value, String label, Integer dailyQuota, LocalDate quotaResetDate) {
         this(value, label, true, dailyQuota, quotaResetDate);
     }
 
-    public ProcedureType(String value, String label, boolean active, int dailyQuota, LocalDate quotaResetDate) {
+    public ProcedureType(String value, String label, boolean active, Integer dailyQuota, LocalDate quotaResetDate) {
         this.value = value;
         this.label = label;
         this.active = active;
@@ -63,12 +63,17 @@ public class ProcedureType {
         return active;
     }
 
-    public int getDailyQuota() {
+    public Integer getDailyQuota() {
         return dailyQuota;
     }
 
-    public int getRemainingQuota() {
+    public Integer getRemainingQuota() {
         return remainingQuota;
+    }
+
+    /** Corrige el texto visible sin tocar el cupo. El seed lo usa para la tilde de alumbrado. */
+    public void replaceLabel(String label) {
+        this.label = label;
     }
 
     public LocalDate getQuotaResetDate() {
@@ -77,12 +82,23 @@ public class ProcedureType {
 
     /**
      * Cambia lo editable. El value no se toca.
-     * Lo ya usado hoy (cupo menos lo que queda) se conserva: si el cupo nuevo no alcanza, queda en 0.
+     * dailyQuota null es sin límite: remainingQuota también queda null.
+     * Si había límite, lo ya usado hoy se conserva y, si el cupo nuevo no alcanza, queda en 0.
      */
-    public void updateDetails(String label, boolean active, int dailyQuota) {
-        int used = Math.max(0, this.dailyQuota - this.remainingQuota);
+    public void updateDetails(String label, boolean active, Integer dailyQuota) {
         this.label = label;
         this.active = active;
+        if (dailyQuota == null) {
+            this.dailyQuota = null;
+            this.remainingQuota = null;
+            return;
+        }
+        if (this.dailyQuota == null || this.remainingQuota == null) {
+            this.dailyQuota = dailyQuota;
+            this.remainingQuota = dailyQuota;
+            return;
+        }
+        int used = Math.max(0, this.dailyQuota - this.remainingQuota);
         this.dailyQuota = dailyQuota;
         this.remainingQuota = Math.max(0, dailyQuota - used);
     }
@@ -98,7 +114,9 @@ public class ProcedureType {
         if (today.equals(quotaResetDate)) {
             return false;
         }
-        this.remainingQuota = this.dailyQuota;
+        if (this.dailyQuota != null) {
+            this.remainingQuota = this.dailyQuota;
+        }
         this.quotaResetDate = today;
         return true;
     }

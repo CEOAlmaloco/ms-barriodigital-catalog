@@ -7,8 +7,8 @@ public record ProcedureView(
         String value,
         String label,
         boolean active,
-        int dailyQuota,
-        int remainingQuota
+        Integer dailyQuota,
+        Integer remainingQuota
 ) {
     public static ProcedureView from(ProcedureType type) {
         return new ProcedureView(
