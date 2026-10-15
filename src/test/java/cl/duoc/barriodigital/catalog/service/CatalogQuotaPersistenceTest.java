@@ -72,6 +72,21 @@ class CatalogQuotaPersistenceTest {
     }
 
     @Test
+    void quitarElLimitePersisteAmbosCuposEnNull() {
+        service.create(new CreateProcedureRequest("semaforo", "Semáforo", true), "Admin");
+        service.update("semaforo", new UpdateProcedureRequest("Semáforo", true, 10, null), "Admin");
+        service.reserve("semaforo");
+
+        service.update("semaforo", new UpdateProcedureRequest("Semáforo", true, null, null), "Admin");
+
+        var stored = repository.findById("semaforo").orElseThrow();
+        assertNull(stored.getDailyQuota());
+        assertNull(stored.getRemainingQuota());
+        assertNull(service.listProcedures().get(0).dailyQuota());
+        assertNull(service.reserve("semaforo").remainingQuota());
+    }
+
+    @Test
     void sinLimiteReservarYLiberarDejanElCupoEnNull() {
         service.create(new CreateProcedureRequest("bache", "Bache en calle", true), "Admin");
 

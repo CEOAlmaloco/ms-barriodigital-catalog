@@ -89,6 +89,10 @@ ALTER TABLE procedure_types MODIFY (remaining_quota NULL);
 
 Las filas que el seed viejo dejó en 10 siguen en 10. Un tipo nuevo, o un PUT sin `dailyQuota`, queda sin límite.
 
+Para una base antigua del esquema `BARRIODIGITAL`, `src/main/resources/db/allow-unlimited-quota.sql` prepara la comprobación y el ajuste manual de ambas columnas, solo si todavía son NOT NULL. Ejecútalo como script en la misma base que usa catalog; al terminar, las dos columnas deben mostrar `NULLABLE = Y`. No se ejecuta automáticamente al arrancar y el DDL de Oracle realiza commit implícito. No sustituye valores ni elimina filas.
+
+Los errores de persistencia devuelven un 500 genérico; el detalle de Oracle/Hibernate se registra únicamente en el servidor. Los errores de negocio 400/403/404/409 conservan sus mensajes controlados. La respuesta de error predeterminada no incluye mensajes internos, stack traces, excepciones ni errores de binding.
+
 ```sql
 SELECT value, label, active, daily_quota, remaining_quota, quota_reset_date
 FROM procedure_types
