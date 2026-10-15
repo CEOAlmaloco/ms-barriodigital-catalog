@@ -80,7 +80,9 @@ En el log tiene que aparecer `Oracle OK: pool conectado` y `Catalogo: seed de ti
 curl http://localhost:8082/actuator/health
 ```
 
-Si la tabla ya existía con `daily_quota` y `remaining_quota` en NOT NULL, Hibernate no se los saca. Hay que correrlo una vez en Oracle:
+Si la tabla ya existía con `daily_quota` y `remaining_quota` en NOT NULL, Hibernate no se los saca. Hay que correrlo una vez en Oracle. Sin eso, «Sin límite diario» sigue fallando aunque el mensaje ya no muestre el error de Oracle.
+
+Un fallo de base de datos responde **500** con `No se pudieron guardar los cambios. Inténtalo nuevamente.` El SQL y el código de Oracle quedan en el log del servicio, no en el JSON. Los 400, 403, 404 y 409 siguen trayendo su `message` de negocio.
 
 ```sql
 ALTER TABLE procedure_types MODIFY (daily_quota NULL);

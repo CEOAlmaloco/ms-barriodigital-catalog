@@ -8,6 +8,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
@@ -15,6 +16,8 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
 
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.not;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
@@ -178,5 +181,23 @@ class CatalogControllerTest {
         mockMvc.perform(post("/api/catalog/procedures/bache/release"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.remainingQuota").value(8));
+    }
+
+    @Test
+    void putConFalloDeOracleNoExponeElSql() throws Exception {
+        when(catalogService.update(eq("alumbrado"), any(UpdateProcedureRequest.class), eq("Admin")))
+                .thenThrow(new DataIntegrityViolationException(
+                        "could not execute statement [ORA-01407: no se puede actualizar (\"BARRIODIGITAL\".\"PROCEDURE_TYPES\".\"DAILY_QUOTA\") a un valor NULL]"
+                ));
+
+        mockMvc.perform(put("/api/catalog/procedures/alumbrado")
+                        .header("X-User-Roles", "Admin")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"label":"Alumbrado público","active":true}
+                                """))
+                .andExpect(status().isInternalServerError())
+                .andExpect(jsonPath("$.message").value(CatalogExceptionHandler.PERSISTENCE_MESSAGE))
+                .andExpect(jsonPath("$.message").value(not(containsString("ORA-01407"))));
     }
 }

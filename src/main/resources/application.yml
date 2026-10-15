@@ -1,7 +1,7 @@
 server:
   port: 8082
   error:
-    include-message: always
+    include-message: never
 
 spring:
   application:
