@@ -4,12 +4,15 @@ import cl.duoc.barriodigital.catalog.service.CatalogService;
 import cl.duoc.barriodigital.catalog.web.dto.CreateProcedureRequest;
 import cl.duoc.barriodigital.catalog.web.dto.ProcedureView;
 import cl.duoc.barriodigital.catalog.web.dto.UpdateProcedureRequest;
+import jakarta.persistence.PersistenceException;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
+import org.springframework.transaction.TransactionSystemException;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.web.server.ResponseStatusException;
 
@@ -22,6 +25,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest(CatalogController.class)
@@ -167,6 +171,40 @@ class CatalogControllerTest {
         mockMvc.perform(post("/api/catalog/procedures/bache/reserve"))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.message").value("No queda cupo para este tipo de tramite"));
+    }
+
+    @Test
+    void erroresDePersistenciaNoExponenOracleSqlNiExcepciones() throws Exception {
+        String technical = "ORA-01407 BARRIODIGITAL.PROCEDURE_TYPES.DAILY_QUOTA update procedure_types";
+        for (RuntimeException error : List.of(
+                new DataIntegrityViolationException(technical),
+                new TransactionSystemException(technical),
+                new PersistenceException(technical)
+        )) {
+            when(catalogService.update(eq("bache"), any(UpdateProcedureRequest.class), eq("Admin")))
+                    .thenThrow(error);
+
+            mockMvc.perform(put("/api/catalog/procedures/bache")
+                            .header("X-User-Roles", "Admin")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("""
+                                    {"label":"Bache","active":true,"dailyQuota":null}
+                                    """))
+                    .andExpect(status().isInternalServerError())
+                    .andExpect(content().json("""
+                            {"status":500,"error":"Internal Server Error","message":"No pudimos procesar la solicitud. Intenta nuevamente."}
+                            """, true));
+        }
+    }
+
+    @Test
+    void responseStatusException500TampocoExponeDetalles() throws Exception {
+        when(catalogService.listProcedures()).thenThrow(
+                new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "ORA-01407 update procedure_types"));
+
+        mockMvc.perform(get("/api/catalog/procedures"))
+                .andExpect(status().isInternalServerError())
+                .andExpect(jsonPath("$.message").value(CatalogExceptionHandler.INTERNAL_ERROR));
     }
 
     @Test

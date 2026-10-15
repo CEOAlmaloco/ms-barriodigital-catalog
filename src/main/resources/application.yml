@@ -1,7 +1,10 @@
 server:
   port: 8082
   error:
-    include-message: always
+    include-message: never
+    include-stacktrace: never
+    include-exception: false
+    include-binding-errors: never
 
 spring:
   application:
