@@ -99,6 +99,33 @@ FROM procedure_types
 ORDER BY value;
 ```
 
+## Docker
+
+Catalog se levanta solo, sin el BFF ni requests. Puerto **8082**. La imagen no lleva el wallet ni el `.env`: el wallet entra como volumen de solo lectura y Oracle llega por variables. `.dockerignore` deja fuera `target/`, `.env` y el wallet, así que tampoco entran en el contexto de build.
+
+| Variable | Dentro del contenedor |
+|---|---|
+| `ORACLE_URL` | `jdbc:oracle:thin:@<alias>?TNS_ADMIN=/wallet` |
+| `ORACLE_USER` | Usuario de la aplicación |
+| `ORACLE_PASSWORD` | Contraseña de ese usuario |
+| `ORACLE_WALLET_DIR` | `/wallet` |
+
+El `<alias>` tiene que existir en el `tnsnames.ora` del wallet. La carpeta del host es la misma que usa el arranque con Maven, y queda fuera del repo.
+
+```powershell
+docker build -t bd-catalog .
+
+docker run --rm -p 8082:8082 `
+  -e ORACLE_URL="jdbc:oracle:thin:@barriodig_low?TNS_ADMIN=/wallet" `
+  -e ORACLE_USER=barriodigital `
+  -e ORACLE_PASSWORD=******** `
+  -e ORACLE_WALLET_DIR=/wallet `
+  -v "C:/ruta/a/Wallet_BARRIODIG:/wallet:ro" `
+  bd-catalog
+```
+
+`GET http://localhost:8082/actuator/health` responde `{"status":"UP"}` cuando Oracle conectó. Si el wallet o las credenciales fallan, el estado no queda UP.
+
 ## Git
 
 `.gitignore` cubre `target/`, `.env` y el wallet. Los secretos solo van en `.env`.
