@@ -20,8 +20,8 @@ import java.util.List;
 import java.util.regex.Pattern;
 
 /**
- * Lee los tipos en cada llamada. No guarda la lista en memoria:
- * un alta hecha después aparece en el siguiente GET sin reiniciar.
+ * Aplica las reglas del catálogo leyendo Oracle en cada llamada.
+ * Un tipo creado aparece en la consulta siguiente, sin reiniciar el servicio.
  */
 @Service
 public class CatalogService {
@@ -32,12 +32,17 @@ public class CatalogService {
     private final EntityManager entityManager;
     private final Clock clock;
 
+    /** Recibe el repositorio, el EntityManager para insertar sin sobrescribir filas y el reloj de Chile. */
     public CatalogService(ProcedureTypeRepository repository, EntityManager entityManager, Clock clock) {
         this.repository = repository;
         this.entityManager = entityManager;
         this.clock = clock;
     }
 
+    /**
+     * Lista los tipos ordenados por código.
+     * Si cambió el día en hora de Chile, repone el cupo antes de devolverlos.
+     */
     @Transactional
     public List<ProcedureView> listProcedures() {
         LocalDate today = today();
@@ -51,6 +56,10 @@ public class CatalogService {
                 .toList();
     }
 
+    /**
+     * Crea un tipo y exige rol Admin según el encabezado que envía el BFF.
+     * El cupo queda en null, sin límite. Si el código ya existe, responde 409.
+     */
     @Transactional
     public ProcedureView create(CreateProcedureRequest body, String rolesHeader) {
         if (!AdminCaller.isAdmin(rolesHeader)) {
@@ -74,8 +83,8 @@ public class CatalogService {
     }
 
     /**
-     * Inserta y fuerza el flush en esta transacción.
-     * persist, no merge: un value repetido choca con la clave y no pisa la fila.
+     * Inserta la fila y hace flush para que la base confirme en esta transacción.
+     * Si el código ya existe, no sobrescribe la fila anterior y responde 409.
      */
     @Transactional
     public void insertOnly(ProcedureType type) {
@@ -90,7 +99,7 @@ public class CatalogService {
         }
     }
 
-    /** Solo la clave duplicada (ORA-00001 o SQLState 23505). El resto de errores de integridad sigue su curso. */
+    /** Indica si el error es una clave duplicada. El resto de fallos se propaga. */
     private static boolean isDuplicateKey(Throwable error) {
         Throwable current = error;
         while (current != null) {
@@ -105,6 +114,7 @@ public class CatalogService {
         return false;
     }
 
+    /** Reconoce clave única repetida: SQLState 23505 o código Oracle 1. */
     private static boolean isUniqueViolation(SQLException sql) {
         SQLException current = sql;
         while (current != null) {
@@ -116,6 +126,10 @@ public class CatalogService {
         return false;
     }
 
+    /**
+     * Edita etiqueta, estado activo y cupo; solo Admin, y el código no cambia.
+     * dailyQuota null deja el tipo sin límite.
+     */
     @Transactional
     public ProcedureView update(String pathValue, UpdateProcedureRequest body, String rolesHeader) {
         if (!AdminCaller.isAdmin(rolesHeader)) {
@@ -141,9 +155,8 @@ public class CatalogService {
     }
 
     /**
-     * Uso interno del BFF. No mira roles.
-     * Primero el reset del día, después descuenta 1. El candado de la fila evita dos descuentos a la vez.
-     * Sin límite responde 200 y no descuenta.
+     * Descuenta un cupo al admitir: primero repone el día en hora de Chile y después resta uno; sin límite no descuenta.
+     * No valida rol porque solo lo llama el BFF. El bloqueo de la fila evita dos descuentos a la vez.
      */
     @Transactional
     public ProcedureView reserve(String pathValue) {
@@ -156,8 +169,8 @@ public class CatalogService {
     }
 
     /**
-     * Compensación interna. Suma 1 sin pasar de dailyQuota. Sin límite no cambia nada.
-     * Nunca responde 409.
+     * Devuelve un cupo si la admisión no se guardó: suma uno sin pasar del máximo del día y, sin límite, no cambia el contador.
+     * No valida rol porque solo lo llama el BFF.
      */
     @Transactional
     public ProcedureView release(String pathValue) {
@@ -166,16 +179,19 @@ public class CatalogService {
         return ProcedureView.from(repository.save(current));
     }
 
+    /** Busca el tipo y lo bloquea para que otra reserva o devolución no lo cambie a la vez. */
     private ProcedureType lock(String pathValue) {
         String value = pathValue == null ? "" : pathValue.trim();
         return repository.findByValueForUpdate(value)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "El tipo de tramite no existe"));
     }
 
+    /** Fecha de hoy según el reloj de Chile. El reset del cupo usa este día. */
     private LocalDate today() {
         return LocalDate.now(clock);
     }
 
+    /** Exige un código de hasta 40 caracteres: minúsculas, números, guion o guion bajo. */
     private static String requireValue(String raw) {
         if (raw == null || raw.isBlank()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "El codigo value es obligatorio");
@@ -190,6 +206,7 @@ public class CatalogService {
         return value;
     }
 
+    /** Exige una etiqueta no vacía de hasta 120 caracteres. */
     private static String requireLabel(String raw) {
         if (raw == null || raw.isBlank()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "La etiqueta es obligatoria");
@@ -201,7 +218,7 @@ public class CatalogService {
         return label;
     }
 
-    /** Null es sin límite. Un número, si viene, tiene que ser 1 o más. */
+    /** Null significa sin límite. Si viene un número, exige que sea al menos 1. */
     private static Integer optionalDailyQuota(Integer dailyQuota) {
         if (dailyQuota == null) {
             return null;
@@ -212,6 +229,7 @@ public class CatalogService {
         return dailyQuota;
     }
 
+    /** Rechaza el formulario si trae un código distinto al de la URL. El código no se cambia. */
     private static void rejectValueChange(String pathValue, String bodyValue) {
         if (bodyValue == null || bodyValue.isBlank()) {
             return;

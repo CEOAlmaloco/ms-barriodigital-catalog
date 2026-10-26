@@ -2,7 +2,10 @@ package cl.duoc.barriodigital.catalog.web.dto;
 
 import cl.duoc.barriodigital.catalog.domain.ProcedureType;
 
-/** Lo que ve el cliente. quotaResetDate queda en la tabla y no se serializa. */
+/**
+ * Respuesta de un tipo: código, nombre, si está activo y el cupo.
+ * No incluye quotaResetDate: es un dato interno del reset en hora de Chile.
+ */
 public record ProcedureView(
         String value,
         String label,
@@ -10,6 +13,7 @@ public record ProcedureView(
         Integer dailyQuota,
         Integer remainingQuota
 ) {
+    /** Arma la respuesta a partir de la entidad persistida. */
     public static ProcedureView from(ProcedureType type) {
         return new ProcedureView(
                 type.getValue(),

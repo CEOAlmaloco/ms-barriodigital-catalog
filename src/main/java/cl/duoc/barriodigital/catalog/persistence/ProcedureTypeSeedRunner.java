@@ -7,6 +7,9 @@ import org.springframework.boot.ApplicationRunner;
 import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 
+/**
+ * Ejecuta la carga inicial al arrancar, después de comprobar que Oracle responde.
+ */
 @Component
 @Order(1)
 public class ProcedureTypeSeedRunner implements ApplicationRunner {
@@ -15,10 +18,12 @@ public class ProcedureTypeSeedRunner implements ApplicationRunner {
 
     private final ProcedureTypeSeed seed;
 
+    /** Recibe el componente que inserta los tipos faltantes. */
     public ProcedureTypeSeedRunner(ProcedureTypeSeed seed) {
         this.seed = seed;
     }
 
+    /** Inserta lo que falte y registra cuántas filas nuevas hubo. */
     @Override
     public void run(ApplicationArguments args) {
         int inserted = seed.insertMissing();
