@@ -1,16 +1,18 @@
 package cl.duoc.barriodigital.catalog.web;
 
 /**
- * El BFF valida el JWT y reenvía el claim {@code roles} en este header.
- * Catalog no lee el token.
+ * Lee el encabezado de roles que envía el BFF.
+ * El catálogo no ve el JWT: el BFF ya lo validó y reenvía los roles.
  */
 public final class AdminCaller {
 
     public static final String HEADER_USER_ROLES = "X-User-Roles";
 
+    /** Impide instanciar la clase: solo se usa isAdmin. */
     private AdminCaller() {
     }
 
+    /** Indica si el encabezado incluye el rol Admin. */
     public static boolean isAdmin(String rolesHeader) {
         if (rolesHeader == null || rolesHeader.isBlank()) {
             return false;

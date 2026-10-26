@@ -1,8 +1,8 @@
 package cl.duoc.barriodigital.catalog.web.dto;
 
 /**
- * Alta de un tipo. {@code active} se omite como true.
- * El cupo no se manda en el POST: nace en null, sin límite.
+ * Cuerpo para crear un tipo: código y nombre.
+ * Si active no viene, el servicio lo trata como activo. El cupo no se envía: queda en null, sin límite.
  */
 public record CreateProcedureRequest(String value, String label, Boolean active) {
 }

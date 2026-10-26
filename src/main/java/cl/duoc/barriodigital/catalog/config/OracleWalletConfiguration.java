@@ -13,27 +13,37 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 
 /**
- * Aplica ORACLE_WALLET_DIR como TNS_ADMIN antes de crear el DataSource.
- * Mismo patrón que ms-barriodigital-requests.
+ * Fija la carpeta del wallet como TNS_ADMIN antes de crear el DataSource.
+ * Si la carpeta no existe o le falta tnsnames.ora, el servicio no arranca.
  */
 @Configuration
 public class OracleWalletConfiguration {
 
+    /** Registra el paso que corre antes de abrir Oracle. */
     @Bean
     static BeanFactoryPostProcessor oracleWalletTnsAdmin() {
         return new OracleWalletTnsAdminPostProcessor();
     }
 
+    /**
+     * Lee ORACLE_WALLET_DIR y la deja en oracle.net.tns_admin.
+     * El driver necesita esa carpeta para encontrar tnsnames.ora antes de conectar.
+     */
     static final class OracleWalletTnsAdminPostProcessor
             implements BeanFactoryPostProcessor, EnvironmentAware {
 
         private Environment environment;
 
+        /** Guarda el entorno para leer la variable en el postproceso. */
         @Override
         public void setEnvironment(Environment environment) {
             this.environment = environment;
         }
 
+        /**
+         * Si hay wallet, comprueba la carpeta y tnsnames.ora, y fija la propiedad del driver.
+         * Sin la variable no hace nada y deja la conexión como esté configurada.
+         */
         @Override
         public void postProcessBeanFactory(ConfigurableListableBeanFactory beanFactory) throws BeansException {
             String walletDir = environment.getProperty("ORACLE_WALLET_DIR");

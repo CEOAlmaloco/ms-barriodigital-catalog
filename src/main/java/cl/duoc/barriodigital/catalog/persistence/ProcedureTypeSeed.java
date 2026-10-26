@@ -8,9 +8,8 @@ import java.time.LocalDate;
 import java.util.List;
 
 /**
- * Inserta los 6 códigos que ya usa requests si todavía no están.
- * El cupo nace en null (sin límite). No pisa un label ya editado:
- * solo corrige la tilde si la fila sigue diciendo "Alumbrado publico".
+ * Inserta los seis tipos iniciales si todavía no están.
+ * Se guardan con dailyQuota null, sin límite. No reemplaza un nombre ya editado: solo corrige la tilde si alumbrado sigue diciendo "Alumbrado publico".
  */
 @Component
 public class ProcedureTypeSeed {
@@ -29,11 +28,13 @@ public class ProcedureTypeSeed {
     private final ProcedureTypeRepository repository;
     private final Clock clock;
 
+    /** Recibe el repositorio y el reloj de Chile para fechar las filas nuevas. */
     public ProcedureTypeSeed(ProcedureTypeRepository repository, Clock clock) {
         this.repository = repository;
         this.clock = clock;
     }
 
+    /** Inserta los códigos que faltan y devuelve cuántas filas nuevas guardó. */
     public int insertMissing() {
         LocalDate today = LocalDate.now(clock);
         int inserted = 0;
@@ -48,6 +49,7 @@ public class ProcedureTypeSeed {
         return inserted;
     }
 
+    /** Si alumbrado conserva la etiqueta sin tilde, la reemplaza por "Alumbrado público". */
     private void correctAlumbradoAccent(SeedRow row) {
         if (!"alumbrado".equals(row.value())) {
             return;
@@ -60,6 +62,7 @@ public class ProcedureTypeSeed {
         });
     }
 
+    /** Código y nombre de una fila de la carga inicial. */
     public record SeedRow(String value, String label) {
     }
 }
