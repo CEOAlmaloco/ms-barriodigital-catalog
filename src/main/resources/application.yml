@@ -11,6 +11,11 @@ spring:
     name: ms-barriodigital-catalog
   config:
     import: optional:file:.env[.properties]
+  jackson:
+    deserialization:
+      accept-float-as-int: false
+    mapper:
+      allow-coercion-of-scalars: false
   datasource:
     url: ${ORACLE_URL}
     username: ${ORACLE_USER}

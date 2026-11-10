@@ -78,7 +78,7 @@ class CatalogServiceTest {
         when(repository.existsById("semaforo")).thenReturn(false);
 
         ProcedureView created = service.create(
-                new CreateProcedureRequest(" semaforo ", " Semáforo en mal estado ", null),
+                new CreateProcedureRequest(" semaforo ", " Semáforo en mal estado ", null, null),
                 "Funcionario, Admin"
         );
 
@@ -87,8 +87,31 @@ class CatalogServiceTest {
         assertTrue(created.active());
         assertNull(created.dailyQuota());
         assertNull(created.remainingQuota());
+        assertNull(created.slaBusinessDays());
         verify(entityManager).persist(any(ProcedureType.class));
         verify(entityManager).flush();
+    }
+
+    @Test
+    void adminCreaElTipoConPlazoOpcional() {
+        when(repository.existsById("semaforo")).thenReturn(false);
+
+        ProcedureView created = service.create(
+                new CreateProcedureRequest("semaforo", "Semáforo", true, 5),
+                "Admin"
+        );
+
+        assertEquals(5, created.slaBusinessDays());
+        verify(entityManager).persist(any(ProcedureType.class));
+    }
+
+    @Test
+    void altaConPlazoFueraDeRangoEs400() {
+        assertEquals(HttpStatus.BAD_REQUEST, statusOf(() ->
+                service.create(new CreateProcedureRequest("semaforo", "Semáforo", true, 0), "Admin")));
+        assertEquals(HttpStatus.BAD_REQUEST, statusOf(() ->
+                service.create(new CreateProcedureRequest("semaforo", "Semáforo", true, 121), "Admin")));
+        verify(entityManager, never()).persist(any());
     }
 
     @Test
@@ -96,7 +119,7 @@ class CatalogServiceTest {
         when(repository.existsById("verano")).thenReturn(false);
 
         ProcedureView created = service.create(
-                new CreateProcedureRequest("verano", "Feria de verano", false),
+                new CreateProcedureRequest("verano", "Feria de verano", false, null),
                 "Admin"
         );
 
@@ -109,7 +132,7 @@ class CatalogServiceTest {
         when(repository.existsById("bache")).thenReturn(true);
 
         ResponseStatusException ex = assertThrows(ResponseStatusException.class, () ->
-                service.create(new CreateProcedureRequest("bache", "Otro bache", true), "Admin"));
+                service.create(new CreateProcedureRequest("bache", "Otro bache", true, null), "Admin"));
 
         assertEquals(HttpStatus.CONFLICT, ex.getStatusCode());
         verify(entityManager, never()).persist(any());
@@ -122,7 +145,7 @@ class CatalogServiceTest {
                 .when(entityManager).flush();
 
         assertEquals(HttpStatus.CONFLICT, statusOf(() ->
-                service.create(new CreateProcedureRequest("bache", "Bache", true), "ROLE_Admin")));
+                service.create(new CreateProcedureRequest("bache", "Bache", true, null), "ROLE_Admin")));
     }
 
     @Test
@@ -132,7 +155,7 @@ class CatalogServiceTest {
                 .when(entityManager).flush();
 
         assertEquals(HttpStatus.CONFLICT, statusOf(() ->
-                service.create(new CreateProcedureRequest("bache", "Bache", true), "Admin")));
+                service.create(new CreateProcedureRequest("bache", "Bache", true, null), "Admin")));
     }
 
     @Test
@@ -142,33 +165,33 @@ class CatalogServiceTest {
                 .when(entityManager).flush();
 
         assertThrows(PersistenceException.class, () ->
-                service.create(new CreateProcedureRequest("semaforo", "Semáforo", true), "Admin"));
+                service.create(new CreateProcedureRequest("semaforo", "Semáforo", true, null), "Admin"));
     }
 
     @Test
     void vecinoFuncionarioYSinRolReciben403() {
         assertEquals(HttpStatus.FORBIDDEN, statusOf(() ->
-                service.create(new CreateProcedureRequest("semaforo", "Semáforo", true), "Vecino")));
+                service.create(new CreateProcedureRequest("semaforo", "Semáforo", true, null), "Vecino")));
         assertEquals(HttpStatus.FORBIDDEN, statusOf(() ->
-                service.create(new CreateProcedureRequest("semaforo", "Semáforo", true), "Funcionario")));
+                service.create(new CreateProcedureRequest("semaforo", "Semáforo", true, null), "Funcionario")));
         assertEquals(HttpStatus.FORBIDDEN, statusOf(() ->
-                service.create(new CreateProcedureRequest("semaforo", "Semáforo", true), null)));
+                service.create(new CreateProcedureRequest("semaforo", "Semáforo", true, null), null)));
         verify(repository, never()).existsById(any());
     }
 
     @Test
     void valueVacioOConMayusculaEs400() {
         assertEquals(HttpStatus.BAD_REQUEST, statusOf(() ->
-                service.create(new CreateProcedureRequest("  ", "Semáforo", true), "Admin")));
+                service.create(new CreateProcedureRequest("  ", "Semáforo", true, null), "Admin")));
         assertEquals(HttpStatus.BAD_REQUEST, statusOf(() ->
-                service.create(new CreateProcedureRequest("Semáforo", "Semáforo", true), "Admin")));
+                service.create(new CreateProcedureRequest("Semáforo", "Semáforo", true, null), "Admin")));
         verify(entityManager, never()).persist(any());
     }
 
     @Test
     void labelVacioEs400() {
         assertEquals(HttpStatus.BAD_REQUEST, statusOf(() ->
-                service.create(new CreateProcedureRequest("semaforo", "   ", true), "Admin")));
+                service.create(new CreateProcedureRequest("semaforo", "   ", true, null), "Admin")));
     }
 
     @Test
@@ -179,7 +202,7 @@ class CatalogServiceTest {
 
         ProcedureView updated = service.update(
                 " bache ",
-                new UpdateProcedureRequest(" Bache grave ", false, 4, "bache"),
+                new UpdateProcedureRequest(" Bache grave ", false, 4, null, "bache"),
                 "Admin"
         );
 
@@ -199,12 +222,43 @@ class CatalogServiceTest {
 
         ProcedureView updated = service.update(
                 "bache",
-                new UpdateProcedureRequest("Bache en calle", true, null, null),
+                new UpdateProcedureRequest("Bache en calle", true, null, null, null),
                 "Admin"
         );
 
         assertNull(updated.dailyQuota());
         assertNull(updated.remainingQuota());
+        assertNull(updated.slaBusinessDays());
+    }
+
+    @Test
+    void adminEditaElPlazoYUnPutSinPlazoLoBorra() {
+        ProcedureType bache = new ProcedureType("bache", "Bache en calle", true, 10, null, TODAY);
+        when(repository.findById("bache")).thenReturn(Optional.of(bache));
+        when(repository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        ProcedureView withSla = service.update(
+                "bache",
+                new UpdateProcedureRequest("Bache en calle", true, 10, 5, null),
+                "Admin"
+        );
+        assertEquals(5, withSla.slaBusinessDays());
+
+        ProcedureView withoutSla = service.update(
+                "bache",
+                new UpdateProcedureRequest("Bache en calle", true, 10, null, null),
+                "Admin"
+        );
+        assertNull(withoutSla.slaBusinessDays());
+    }
+
+    @Test
+    void edicionConPlazoFueraDeRangoEs400() {
+        assertEquals(HttpStatus.BAD_REQUEST, statusOf(() ->
+                service.update("bache", new UpdateProcedureRequest("Bache", true, 5, 0, null), "Admin")));
+        assertEquals(HttpStatus.BAD_REQUEST, statusOf(() ->
+                service.update("bache", new UpdateProcedureRequest("Bache", true, 5, 121, null), "Admin")));
+        verify(repository, never()).findById(any());
     }
 
     @Test
@@ -212,32 +266,32 @@ class CatalogServiceTest {
         when(repository.findById("no-esta")).thenReturn(Optional.empty());
 
         assertEquals(HttpStatus.NOT_FOUND, statusOf(() ->
-                service.update("no-esta", new UpdateProcedureRequest("Nada", true, 5, null), "Admin")));
+                service.update("no-esta", new UpdateProcedureRequest("Nada", true, 5, null, null), "Admin")));
         verify(repository, never()).save(any());
     }
 
     @Test
     void noSePuedeCambiarElValue() {
         assertEquals(HttpStatus.BAD_REQUEST, statusOf(() ->
-                service.update("bache", new UpdateProcedureRequest("Bache", true, 5, "otro"), "Admin")));
+                service.update("bache", new UpdateProcedureRequest("Bache", true, 5, null, "otro"), "Admin")));
         verify(repository, never()).findById(any());
     }
 
     @Test
     void edicionSinAdminResponde403() {
         assertEquals(HttpStatus.FORBIDDEN, statusOf(() ->
-                service.update("bache", new UpdateProcedureRequest("Bache", true, 5, null), "Vecino")));
+                service.update("bache", new UpdateProcedureRequest("Bache", true, 5, null, null), "Vecino")));
         verify(repository, never()).findById(any());
     }
 
     @Test
     void edicionSinEtiquetaActivoOCupoEs400() {
         assertEquals(HttpStatus.BAD_REQUEST, statusOf(() ->
-                service.update("bache", new UpdateProcedureRequest("  ", true, 5, null), "Admin")));
+                service.update("bache", new UpdateProcedureRequest("  ", true, 5, null, null), "Admin")));
         assertEquals(HttpStatus.BAD_REQUEST, statusOf(() ->
-                service.update("bache", new UpdateProcedureRequest("Bache", null, 5, null), "Admin")));
+                service.update("bache", new UpdateProcedureRequest("Bache", null, 5, null, null), "Admin")));
         assertEquals(HttpStatus.BAD_REQUEST, statusOf(() ->
-                service.update("bache", new UpdateProcedureRequest("Bache", true, 0, null), "Admin")));
+                service.update("bache", new UpdateProcedureRequest("Bache", true, 0, null, null), "Admin")));
         verify(repository, never()).findById(any());
     }
 

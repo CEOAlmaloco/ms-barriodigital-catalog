@@ -78,7 +78,7 @@ class LazyQuotaResetTest {
 
         ProcedureView updated = service.update(
                 "bache",
-                new UpdateProcedureRequest("Bache en calle", true, 10, null),
+                new UpdateProcedureRequest("Bache en calle", true, 10, null, null),
                 "Admin"
         );
 

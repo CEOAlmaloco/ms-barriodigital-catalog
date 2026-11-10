@@ -27,6 +27,9 @@ import java.util.regex.Pattern;
 public class CatalogService {
 
     private static final Pattern VALUE_PATTERN = Pattern.compile("^[a-z0-9_-]{1,40}$");
+    public static final String SLA_RANGE_MESSAGE = "El plazo debe ser un entero entre 1 y 120 dias habiles";
+    public static final int SLA_MIN = 1;
+    public static final int SLA_MAX = 120;
 
     private final ProcedureTypeRepository repository;
     private final EntityManager entityManager;
@@ -58,7 +61,8 @@ public class CatalogService {
 
     /**
      * Crea un tipo y exige rol Admin según el encabezado que envía el BFF.
-     * El cupo queda en null, sin límite. Si el código ya existe, responde 409.
+     * El cupo queda en null, sin límite. slaBusinessDays es opcional; null deja el tipo sin plazo.
+     * Si el código ya existe, responde 409.
      */
     @Transactional
     public ProcedureView create(CreateProcedureRequest body, String rolesHeader) {
@@ -72,12 +76,13 @@ public class CatalogService {
         String value = requireValue(body.value());
         String label = requireLabel(body.label());
         boolean active = body.active() == null || body.active();
+        Integer slaBusinessDays = optionalSlaBusinessDays(body.slaBusinessDays());
 
         if (repository.existsById(value)) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "El codigo value ya existe");
         }
 
-        ProcedureType type = new ProcedureType(value, label, active, null, today());
+        ProcedureType type = new ProcedureType(value, label, active, null, slaBusinessDays, today());
         insertOnly(type);
         return ProcedureView.from(type);
     }
@@ -127,8 +132,8 @@ public class CatalogService {
     }
 
     /**
-     * Edita etiqueta, estado activo y cupo; solo Admin, y el código no cambia.
-     * dailyQuota null deja el tipo sin límite.
+     * Edita etiqueta, estado activo, cupo y plazo; solo Admin, y el código no cambia.
+     * dailyQuota o slaBusinessDays null quitan el límite o el plazo.
      */
     @Transactional
     public ProcedureView update(String pathValue, UpdateProcedureRequest body, String rolesHeader) {
@@ -146,11 +151,12 @@ public class CatalogService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "El campo active es obligatorio");
         }
         Integer dailyQuota = optionalDailyQuota(body.dailyQuota());
+        Integer slaBusinessDays = optionalSlaBusinessDays(body.slaBusinessDays());
 
         ProcedureType current = repository.findById(value)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "El tipo de tramite no existe"));
         current.resetForToday(today());
-        current.updateDetails(label, body.active(), dailyQuota);
+        current.updateDetails(label, body.active(), dailyQuota, slaBusinessDays);
         return ProcedureView.from(repository.save(current));
     }
 
@@ -227,6 +233,17 @@ public class CatalogService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "El cupo diario debe ser al menos 1");
         }
         return dailyQuota;
+    }
+
+    /** Null significa sin plazo. Si viene un número, exige el rango de EP3-06: 1 a 120. */
+    private static Integer optionalSlaBusinessDays(Integer slaBusinessDays) {
+        if (slaBusinessDays == null) {
+            return null;
+        }
+        if (slaBusinessDays < SLA_MIN || slaBusinessDays > SLA_MAX) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, SLA_RANGE_MESSAGE);
+        }
+        return slaBusinessDays;
     }
 
     /** Rechaza el formulario si trae un código distinto al de la URL. El código no se cambia. */
