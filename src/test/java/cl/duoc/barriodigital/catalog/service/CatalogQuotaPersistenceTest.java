@@ -1,6 +1,8 @@
 package cl.duoc.barriodigital.catalog.service;
 
 import cl.duoc.barriodigital.catalog.config.ClockConfig;
+import cl.duoc.barriodigital.catalog.messaging.AuditEventFactory;
+import cl.duoc.barriodigital.catalog.messaging.AuditPublisher;
 import cl.duoc.barriodigital.catalog.persistence.ProcedureTypeRepository;
 import cl.duoc.barriodigital.catalog.web.dto.CreateProcedureRequest;
 import cl.duoc.barriodigital.catalog.web.dto.ProcedureView;
@@ -10,6 +12,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
+import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.HttpStatus;
 import org.springframework.test.context.TestPropertySource;
@@ -35,7 +38,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 @DataJpaTest
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.ANY)
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
-@Import({CatalogService.class, ClockConfig.class})
+@Import({CatalogService.class, ClockConfig.class, AuditEventFactory.class})
 @TestPropertySource(properties = {
         "spring.jpa.hibernate.ddl-auto=create-drop",
         "spring.datasource.driver-class-name=org.h2.Driver",
@@ -43,6 +46,9 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
         "spring.jpa.properties.hibernate.globally_quoted_identifiers=true"
 })
 class CatalogQuotaPersistenceTest {
+
+    @MockBean
+    AuditPublisher auditPublisher;
 
     @Autowired
     CatalogService service;

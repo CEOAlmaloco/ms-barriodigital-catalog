@@ -1,5 +1,7 @@
 package cl.duoc.barriodigital.catalog.domain;
 
+import cl.duoc.barriodigital.catalog.messaging.AuditEventFactory;
+import cl.duoc.barriodigital.catalog.messaging.AuditPublisher;
 import cl.duoc.barriodigital.catalog.persistence.ProcedureTypeRepository;
 import cl.duoc.barriodigital.catalog.service.CatalogService;
 import cl.duoc.barriodigital.catalog.web.dto.ProcedureView;
@@ -29,7 +31,13 @@ class QuotaReserveTest {
     private static final LocalDate TODAY = LocalDate.parse("2026-10-13");
 
     private final ProcedureTypeRepository repository = mock(ProcedureTypeRepository.class);
-    private final CatalogService service = new CatalogService(repository, mock(EntityManager.class), CLOCK);
+    private final CatalogService service = new CatalogService(
+            repository,
+            mock(EntityManager.class),
+            CLOCK,
+            new AuditEventFactory(CLOCK),
+            mock(AuditPublisher.class)
+    );
 
     @Test
     void reservarEnUnDiaNuevoReponeYDespuesDescuenta() {
