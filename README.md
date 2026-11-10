@@ -64,6 +64,16 @@ POST /api/catalog/procedures/{value}/release
 
 Los dos corren en una transacción con candado de escritura sobre la fila, así dos reservas a la vez no descuentan el mismo cupo. La respuesta **200** tiene la misma forma que un ítem del GET.
 
+## Auditoría en audit.timeline (EP3-26)
+
+Tras un alta o edición exitosa, catalog encola un evento `procedure-type.created` o `procedure-type.updated` en `audit.timeline` (después del commit). El productor usa `acks=all` e idempotencia, un hilo y cola de 1000. El JSON lleva `before`/`after` con `label`, `active`, `dailyQuota` y `slaBusinessDays`. El actor sale de `X-User-Id`, `X-User-Name` (URL-decoded), `X-User-Roles` y `X-Source-Ip`.
+
+`reserve` y `release` **no se auditan**: son operaciones de alta frecuencia del flujo de admisión; el cambio de estado que las provoca ya queda en `requests.events`.
+
+Si Kafka falla o el servicio se apaga con eventos pendientes, queda `ERROR evento-auditoria-no-publicado` con el JSON. Un reinicio controlado (`docker compose restart`) no pierde esos eventos: se reconstruyen desde el log. Catalog no declara `NewTopic` y `spring.kafka.admin.auto-create=false`.
+
+Variable: `KAFKA_BOOTSTRAP_SERVERS` (local: `localhost:9092`). El health de Kafka está desactivado: Kafka caído no tumba el servicio.
+
 ## Arranque
 
 1. Copiá `.env.example` a `.env` y completá Oracle (podés copiar los valores de requests).
@@ -109,6 +119,7 @@ Catalog se levanta solo, sin el BFF ni requests. Puerto **8082**. La imagen no l
 | `ORACLE_USER` | Usuario de la aplicación |
 | `ORACLE_PASSWORD` | Contraseña de ese usuario |
 | `ORACLE_WALLET_DIR` | `/wallet` |
+| `KAFKA_BOOTSTRAP_SERVERS` | Brokers de Kafka (audit.timeline) |
 
 El `<alias>` tiene que existir en el `tnsnames.ora` del wallet. La carpeta del host es la misma que usa el arranque con Maven, y queda fuera del repo.
 
@@ -120,6 +131,7 @@ docker run --rm -p 8082:8082 `
   -e ORACLE_USER=barriodigital `
   -e ORACLE_PASSWORD=******** `
   -e ORACLE_WALLET_DIR=/wallet `
+  -e KAFKA_BOOTSTRAP_SERVERS=host.docker.internal:9092 `
   -v "C:/ruta/a/Wallet_BARRIODIG:/wallet:ro" `
   bd-catalog
 ```

@@ -11,6 +11,11 @@ spring:
     name: ms-barriodigital-catalog
   config:
     import: optional:file:.env[.properties]
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    # Solo kafka-admin crea topics. Catalog no declara NewTopic.
+    admin:
+      auto-create: false
   jackson:
     deserialization:
       accept-float-as-int: false
@@ -49,3 +54,6 @@ management:
   health:
     db:
       enabled: true
+    # Kafka caído no tumba el health: la auditoría es best-effort.
+    kafka:
+      enabled: false

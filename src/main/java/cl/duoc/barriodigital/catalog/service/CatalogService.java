@@ -1,6 +1,10 @@
 package cl.duoc.barriodigital.catalog.service;
 
 import cl.duoc.barriodigital.catalog.domain.ProcedureType;
+import cl.duoc.barriodigital.catalog.messaging.AuditEnvelope;
+import cl.duoc.barriodigital.catalog.messaging.AuditEventFactory;
+import cl.duoc.barriodigital.catalog.messaging.AuditPublisher;
+import cl.duoc.barriodigital.catalog.messaging.ProcedureTypeAuditState;
 import cl.duoc.barriodigital.catalog.persistence.ProcedureTypeRepository;
 import cl.duoc.barriodigital.catalog.web.AdminCaller;
 import cl.duoc.barriodigital.catalog.web.dto.CreateProcedureRequest;
@@ -11,6 +15,8 @@ import org.springframework.dao.DuplicateKeyException;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.sql.SQLException;
@@ -22,6 +28,7 @@ import java.util.regex.Pattern;
 /**
  * Aplica las reglas del catálogo leyendo Oracle en cada llamada.
  * Un tipo creado aparece en la consulta siguiente, sin reiniciar el servicio.
+ * Alta y edición publican en audit.timeline después del commit; reserve/release no.
  */
 @Service
 public class CatalogService {
@@ -30,16 +37,27 @@ public class CatalogService {
     public static final String SLA_RANGE_MESSAGE = "El plazo debe ser un entero entre 1 y 120 dias habiles";
     public static final int SLA_MIN = 1;
     public static final int SLA_MAX = 120;
+    private static final String RESOURCE_TYPE = "procedure-type";
 
     private final ProcedureTypeRepository repository;
     private final EntityManager entityManager;
     private final Clock clock;
+    private final AuditEventFactory auditEvents;
+    private final AuditPublisher auditPublisher;
 
-    /** Recibe el repositorio, el EntityManager para insertar sin sobrescribir filas y el reloj de Chile. */
-    public CatalogService(ProcedureTypeRepository repository, EntityManager entityManager, Clock clock) {
+    /** Recibe persistencia, reloj de Chile y el componente de mensajería de auditoría. */
+    public CatalogService(
+            ProcedureTypeRepository repository,
+            EntityManager entityManager,
+            Clock clock,
+            AuditEventFactory auditEvents,
+            AuditPublisher auditPublisher
+    ) {
         this.repository = repository;
         this.entityManager = entityManager;
         this.clock = clock;
+        this.auditEvents = auditEvents;
+        this.auditPublisher = auditPublisher;
     }
 
     /**
@@ -84,6 +102,13 @@ public class CatalogService {
 
         ProcedureType type = new ProcedureType(value, label, active, null, slaBusinessDays, today());
         insertOnly(type);
+        enqueueAudit(auditEvents.create(
+                RESOURCE_TYPE,
+                value,
+                "created",
+                null,
+                ProcedureTypeAuditState.from(type)
+        ));
         return ProcedureView.from(type);
     }
 
@@ -156,8 +181,34 @@ public class CatalogService {
         ProcedureType current = repository.findById(value)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "El tipo de tramite no existe"));
         current.resetForToday(today());
+        ProcedureTypeAuditState before = ProcedureTypeAuditState.from(current);
         current.updateDetails(label, body.active(), dailyQuota, slaBusinessDays);
-        return ProcedureView.from(repository.save(current));
+        ProcedureType saved = repository.save(current);
+        enqueueAudit(auditEvents.create(
+                RESOURCE_TYPE,
+                value,
+                "updated",
+                before,
+                ProcedureTypeAuditState.from(saved)
+        ));
+        return ProcedureView.from(saved);
+    }
+
+    /**
+     * Publica el evento solo cuando el commit ya confirmó el cambio.
+     * Sin sincronización activa (tests unitarios), publica de inmediato.
+     */
+    private void enqueueAudit(AuditEnvelope envelope) {
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    auditPublisher.publish(envelope);
+                }
+            });
+            return;
+        }
+        auditPublisher.publish(envelope);
     }
 
     /**

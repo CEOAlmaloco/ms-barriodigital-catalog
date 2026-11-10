@@ -1,15 +1,25 @@
 package cl.duoc.barriodigital.catalog.service;
 
 import cl.duoc.barriodigital.catalog.domain.ProcedureType;
+import cl.duoc.barriodigital.catalog.messaging.ActorContext;
+import cl.duoc.barriodigital.catalog.messaging.AuditActor;
+import cl.duoc.barriodigital.catalog.messaging.AuditEnvelope;
+import cl.duoc.barriodigital.catalog.messaging.AuditEventFactory;
+import cl.duoc.barriodigital.catalog.messaging.AuditPublisher;
+import cl.duoc.barriodigital.catalog.messaging.ProcedureTypeAuditState;
 import cl.duoc.barriodigital.catalog.persistence.ProcedureTypeRepository;
 import cl.duoc.barriodigital.catalog.web.dto.CreateProcedureRequest;
 import cl.duoc.barriodigital.catalog.web.dto.ProcedureView;
 import cl.duoc.barriodigital.catalog.web.dto.UpdateProcedureRequest;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceException;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.sql.SQLException;
@@ -40,7 +50,21 @@ class CatalogServiceTest {
 
     private final ProcedureTypeRepository repository = mock(ProcedureTypeRepository.class);
     private final EntityManager entityManager = mock(EntityManager.class);
-    private final CatalogService service = new CatalogService(repository, entityManager, CLOCK);
+    private final AuditEventFactory auditEvents = new AuditEventFactory(CLOCK);
+    private final AuditPublisher auditPublisher = mock(AuditPublisher.class);
+    private final CatalogService service = new CatalogService(
+            repository, entityManager, CLOCK, auditEvents, auditPublisher);
+
+    @BeforeEach
+    void setActor() {
+        ActorContext.set(new AuditActor("u1", "Admin Test", "Admin", "203.0.113.25"));
+    }
+
+    @AfterEach
+    void clearTxAndActor() {
+        ActorContext.clear();
+        TransactionSynchronizationManager.clear();
+    }
 
     @Test
     void listaLoQueHayEnLaTablaOrdenadoPorCodigo() {
@@ -293,6 +317,74 @@ class CatalogServiceTest {
         assertEquals(HttpStatus.BAD_REQUEST, statusOf(() ->
                 service.update("bache", new UpdateProcedureRequest("Bache", true, 0, null, null), "Admin")));
         verify(repository, never()).findById(any());
+    }
+
+    @Test
+    void altaPublicaProcedureTypeCreatedDespuesDelCommit() {
+        when(repository.existsById("semaforo")).thenReturn(false);
+        TransactionSynchronizationManager.setActualTransactionActive(true);
+        TransactionSynchronizationManager.initSynchronization();
+
+        service.create(new CreateProcedureRequest("semaforo", "Semáforo", true, 5), "Admin");
+
+        verify(auditPublisher, never()).publish(any());
+        assertEquals(1, TransactionSynchronizationManager.getSynchronizations().size());
+        TransactionSynchronizationManager.getSynchronizations().forEach(sync -> sync.afterCommit());
+
+        ArgumentCaptor<AuditEnvelope> captor = ArgumentCaptor.forClass(AuditEnvelope.class);
+        verify(auditPublisher).publish(captor.capture());
+        AuditEnvelope event = captor.getValue();
+        assertEquals("procedure-type.created", event.eventType());
+        assertEquals("procedure-type:semaforo", event.key());
+        assertNull(event.payload().before());
+        assertEquals(new ProcedureTypeAuditState("Semáforo", true, null, 5), event.payload().after());
+        assertEquals("203.0.113.25", event.actor().sourceIp());
+    }
+
+    @Test
+    void edicionPublicaProcedureTypeUpdatedConBeforeYAfter() {
+        ProcedureType bache = new ProcedureType("bache", "Bache en calle", true, 20, null, TODAY);
+        when(repository.findById("bache")).thenReturn(Optional.of(bache));
+        when(repository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        TransactionSynchronizationManager.setActualTransactionActive(true);
+        TransactionSynchronizationManager.initSynchronization();
+
+        service.update(
+                "bache",
+                new UpdateProcedureRequest("Bache en calle", true, 15, 5, null),
+                "Admin"
+        );
+
+        verify(auditPublisher, never()).publish(any());
+        TransactionSynchronizationManager.getSynchronizations().forEach(sync -> sync.afterCommit());
+
+        ArgumentCaptor<AuditEnvelope> captor = ArgumentCaptor.forClass(AuditEnvelope.class);
+        verify(auditPublisher).publish(captor.capture());
+        AuditEnvelope event = captor.getValue();
+        assertEquals("procedure-type.updated", event.eventType());
+        assertEquals(new ProcedureTypeAuditState("Bache en calle", true, 20, null), event.payload().before());
+        assertEquals(new ProcedureTypeAuditState("Bache en calle", true, 15, 5), event.payload().after());
+    }
+
+    @Test
+    void altaFallidaNoPublicaAuditoria() {
+        when(repository.existsById("bache")).thenReturn(true);
+
+        assertThrows(ResponseStatusException.class, () ->
+                service.create(new CreateProcedureRequest("bache", "Otro", true, null), "Admin"));
+
+        verify(auditPublisher, never()).publish(any());
+    }
+
+    @Test
+    void reserveNoPublicaAuditoria() {
+        ProcedureType bache = new ProcedureType("bache", "Bache", true, 2, TODAY);
+        when(repository.findByValueForUpdate("bache")).thenReturn(Optional.of(bache));
+        when(repository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        service.reserve("bache");
+
+        verify(auditPublisher, never()).publish(any());
     }
 
     private HttpStatusCode statusOf(Runnable call) {
