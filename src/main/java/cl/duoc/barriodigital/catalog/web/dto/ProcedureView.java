@@ -3,7 +3,7 @@ package cl.duoc.barriodigital.catalog.web.dto;
 import cl.duoc.barriodigital.catalog.domain.ProcedureType;
 
 /**
- * Respuesta de un tipo: código, nombre, si está activo y el cupo.
+ * Respuesta de un tipo: código, nombre, si está activo, el cupo y el plazo en días hábiles.
  * No incluye quotaResetDate: es un dato interno del reset en hora de Chile.
  */
 public record ProcedureView(
@@ -11,7 +11,8 @@ public record ProcedureView(
         String label,
         boolean active,
         Integer dailyQuota,
-        Integer remainingQuota
+        Integer remainingQuota,
+        Integer slaBusinessDays
 ) {
     /** Arma la respuesta a partir de la entidad persistida. */
     public static ProcedureView from(ProcedureType type) {
@@ -20,7 +21,8 @@ public record ProcedureView(
                 type.getLabel(),
                 type.isActive(),
                 type.getDailyQuota(),
-                type.getRemainingQuota()
+                type.getRemainingQuota(),
+                type.getSlaBusinessDays()
         );
     }
 }

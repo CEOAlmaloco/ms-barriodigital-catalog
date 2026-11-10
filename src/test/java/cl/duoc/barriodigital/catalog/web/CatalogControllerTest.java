@@ -40,7 +40,7 @@ class CatalogControllerTest {
     @Test
     void getProceduresDevuelveLosTiposPersistidos() throws Exception {
         when(catalogService.listProcedures()).thenReturn(List.of(
-                new ProcedureView("bache", "Bache en calle", true, 10, 10)
+                new ProcedureView("bache", "Bache en calle", true, 10, 10, null)
         ));
 
         mockMvc.perform(get("/api/catalog/procedures"))
@@ -50,13 +50,14 @@ class CatalogControllerTest {
                 .andExpect(jsonPath("$[0].active").value(true))
                 .andExpect(jsonPath("$[0].dailyQuota").value(10))
                 .andExpect(jsonPath("$[0].remainingQuota").value(10))
+                .andExpect(jsonPath("$[0].slaBusinessDays").value((Integer) null))
                 .andExpect(jsonPath("$[0].quotaResetDate").doesNotExist());
     }
 
     @Test
     void postDeAdminResponde201ConElTipoCreado() throws Exception {
         when(catalogService.create(any(CreateProcedureRequest.class), eq("Admin"))).thenReturn(
-                new ProcedureView("semaforo", "Semáforo en mal estado", true, 10, 10)
+                new ProcedureView("semaforo", "Semáforo en mal estado", true, 10, 10, null)
         );
 
         mockMvc.perform(post("/api/catalog/procedures")
@@ -104,7 +105,7 @@ class CatalogControllerTest {
     @Test
     void putDeAdminResponde200SinCambiarElCodigo() throws Exception {
         when(catalogService.update(eq("bache"), any(UpdateProcedureRequest.class), eq("Admin"))).thenReturn(
-                new ProcedureView("bache", "Bache grave", false, 4, 4)
+                new ProcedureView("bache", "Bache grave", false, 4, 4, null)
         );
 
         mockMvc.perform(put("/api/catalog/procedures/bache")
@@ -153,7 +154,7 @@ class CatalogControllerTest {
     @Test
     void reserveResponde200SinPedirRol() throws Exception {
         when(catalogService.reserve("bache")).thenReturn(
-                new ProcedureView("bache", "Bache en calle", true, 10, 9)
+                new ProcedureView("bache", "Bache en calle", true, 10, 9, null)
         );
 
         mockMvc.perform(post("/api/catalog/procedures/bache/reserve"))
@@ -210,11 +211,64 @@ class CatalogControllerTest {
     @Test
     void releaseResponde200YReponeElCupo() throws Exception {
         when(catalogService.release("bache")).thenReturn(
-                new ProcedureView("bache", "Bache en calle", true, 10, 8)
+                new ProcedureView("bache", "Bache en calle", true, 10, 8, null)
         );
 
         mockMvc.perform(post("/api/catalog/procedures/bache/release"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.remainingQuota").value(8));
+    }
+
+    @Test
+    void postConPlazoResponde201() throws Exception {
+        when(catalogService.create(any(CreateProcedureRequest.class), eq("Admin"))).thenReturn(
+                new ProcedureView("semaforo", "Semáforo", true, null, null, 5)
+        );
+
+        mockMvc.perform(post("/api/catalog/procedures")
+                        .header("X-User-Roles", "Admin")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"value":"semaforo","label":"Semáforo","active":true,"slaBusinessDays":5}
+                                """))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.slaBusinessDays").value(5));
+    }
+
+    @Test
+    void putConPlazoResponde200() throws Exception {
+        when(catalogService.update(eq("bache"), any(UpdateProcedureRequest.class), eq("Admin"))).thenReturn(
+                new ProcedureView("bache", "Bache", true, 10, 10, 5)
+        );
+
+        mockMvc.perform(put("/api/catalog/procedures/bache")
+                        .header("X-User-Roles", "Admin")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"label":"Bache","active":true,"dailyQuota":10,"slaBusinessDays":5}
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.slaBusinessDays").value(5));
+    }
+
+    @Test
+    void bodyConPlazoComoStringResponde400YSinAdmin403() throws Exception {
+        mockMvc.perform(put("/api/catalog/procedures/bache")
+                        .header("X-User-Roles", "Admin")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"label":"Bache","active":true,"dailyQuota":10,"slaBusinessDays":"5"}
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value(CatalogService.SLA_RANGE_MESSAGE));
+
+        mockMvc.perform(put("/api/catalog/procedures/bache")
+                        .header("X-User-Roles", "Vecino")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"label":"Bache","active":true,"dailyQuota":10,"slaBusinessDays":5.7}
+                                """))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.message").value("Solo Admin puede editar tipos de tramite"));
     }
 }

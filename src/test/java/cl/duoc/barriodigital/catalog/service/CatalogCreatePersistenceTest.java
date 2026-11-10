@@ -5,6 +5,7 @@ import cl.duoc.barriodigital.catalog.domain.ProcedureType;
 import cl.duoc.barriodigital.catalog.persistence.ProcedureTypeRepository;
 import cl.duoc.barriodigital.catalog.web.dto.CreateProcedureRequest;
 import cl.duoc.barriodigital.catalog.web.dto.ProcedureView;
+import cl.duoc.barriodigital.catalog.web.dto.UpdateProcedureRequest;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -22,6 +23,7 @@ import java.time.ZoneOffset;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -52,7 +54,7 @@ class CatalogCreatePersistenceTest {
 
     @Test
     void unaColisionNoSobrescribeLaFilaYElGetMuestraLaOriginal() {
-        service.create(new CreateProcedureRequest("semaforo", "Semáforo original", true), "Admin");
+        service.create(new CreateProcedureRequest("semaforo", "Semáforo original", true, null), "Admin");
 
         ProcedureType repetido = new ProcedureType(
                 "semaforo",
@@ -69,5 +71,19 @@ class CatalogCreatePersistenceTest {
         assertEquals(List.of("semaforo"), listed.stream().map(ProcedureView::value).toList());
         assertEquals("Semáforo original", listed.get(0).label());
         assertTrue(listed.get(0).active());
+        assertNull(listed.get(0).slaBusinessDays());
+    }
+
+    @Test
+    void altaYEdicionDelPlazoPersistenYSinPlazoQuedaNull() {
+        service.create(new CreateProcedureRequest("bache", "Bache", true, 5), "Admin");
+        assertEquals(5, service.listProcedures().get(0).slaBusinessDays());
+
+        service.update("bache", new UpdateProcedureRequest("Bache", true, null, 10, null), "Admin");
+        assertEquals(10, repository.findById("bache").orElseThrow().getSlaBusinessDays());
+
+        service.update("bache", new UpdateProcedureRequest("Bache", true, null, null, null), "Admin");
+        assertNull(repository.findById("bache").orElseThrow().getSlaBusinessDays());
+        assertNull(service.listProcedures().get(0).slaBusinessDays());
     }
 }

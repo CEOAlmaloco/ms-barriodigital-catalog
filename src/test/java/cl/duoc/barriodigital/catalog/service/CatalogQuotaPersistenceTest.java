@@ -57,8 +57,8 @@ class CatalogQuotaPersistenceTest {
 
     @Test
     void reservarDescuentaLiberarReponeYElCeroResponde409() {
-        service.create(new CreateProcedureRequest("semaforo", "Semáforo", true), "Admin");
-        service.update("semaforo", new UpdateProcedureRequest("Semáforo", true, 1, null), "Admin");
+        service.create(new CreateProcedureRequest("semaforo", "Semáforo", true, null), "Admin");
+        service.update("semaforo", new UpdateProcedureRequest("Semáforo", true, 1, null, null), "Admin");
 
         ProcedureView reserved = service.reserve("semaforo");
         assertEquals(0, reserved.remainingQuota());
@@ -73,11 +73,11 @@ class CatalogQuotaPersistenceTest {
 
     @Test
     void quitarElLimitePersisteAmbosCuposEnNull() {
-        service.create(new CreateProcedureRequest("semaforo", "Semáforo", true), "Admin");
-        service.update("semaforo", new UpdateProcedureRequest("Semáforo", true, 10, null), "Admin");
+        service.create(new CreateProcedureRequest("semaforo", "Semáforo", true, null), "Admin");
+        service.update("semaforo", new UpdateProcedureRequest("Semáforo", true, 10, null, null), "Admin");
         service.reserve("semaforo");
 
-        service.update("semaforo", new UpdateProcedureRequest("Semáforo", true, null, null), "Admin");
+        service.update("semaforo", new UpdateProcedureRequest("Semáforo", true, null, null, null), "Admin");
 
         var stored = repository.findById("semaforo").orElseThrow();
         assertNull(stored.getDailyQuota());
@@ -88,7 +88,7 @@ class CatalogQuotaPersistenceTest {
 
     @Test
     void sinLimiteReservarYLiberarDejanElCupoEnNull() {
-        service.create(new CreateProcedureRequest("bache", "Bache en calle", true), "Admin");
+        service.create(new CreateProcedureRequest("bache", "Bache en calle", true, null), "Admin");
 
         ProcedureView reserved = service.reserve("bache");
         ProcedureView released = service.release("bache");
@@ -100,8 +100,8 @@ class CatalogQuotaPersistenceTest {
 
     @Test
     void dosReservasALaVezDejanUnaEn409() throws Exception {
-        service.create(new CreateProcedureRequest("bache", "Bache en calle", true), "Admin");
-        service.update("bache", new UpdateProcedureRequest("Bache en calle", true, 1, null), "Admin");
+        service.create(new CreateProcedureRequest("bache", "Bache en calle", true, null), "Admin");
+        service.update("bache", new UpdateProcedureRequest("Bache en calle", true, 1, null, null), "Admin");
 
         ExecutorService pool = Executors.newFixedThreadPool(2);
         CountDownLatch ready = new CountDownLatch(2);
