@@ -64,13 +64,13 @@ POST /api/catalog/procedures/{value}/release
 
 Los dos corren en una transacción con candado de escritura sobre la fila, así dos reservas a la vez no descuentan el mismo cupo. La respuesta **200** tiene la misma forma que un ítem del GET.
 
-## Auditoría en audit.timeline (EP3-26)
+## Auditoría en audit.timeline (EP3-26 + EP3-68)
 
-Tras un alta o edición exitosa, catalog encola un evento `procedure-type.created` o `procedure-type.updated` en `audit.timeline` (después del commit). El productor usa `acks=all` e idempotencia, un hilo y cola de 1000. El JSON lleva `before`/`after` con `label`, `active`, `dailyQuota` y `slaBusinessDays`. El actor sale de `X-User-Id`, `X-User-Name` (URL-decoded), `X-User-Roles` y `X-Source-Ip`.
+Tras un alta o edición exitosa, catalog escribe `procedure-type.created` o `procedure-type.updated` en `outbox_events` **en la misma transacción** del cambio. Un relay publica después a `audit.timeline` (`acks=all`, idempotencia). El JSON lleva `before`/`after` con `label`, `active`, `dailyQuota` y `slaBusinessDays`. El actor sale de `X-User-Id`, `X-User-Name` (URL-decoded), `X-User-Roles` y `X-Source-Ip`.
 
 `reserve` y `release` **no se auditan**: son operaciones de alta frecuencia del flujo de admisión; el cambio de estado que las provoca ya queda en `requests.events`.
 
-Si Kafka falla o el servicio se apaga con eventos pendientes, queda `ERROR evento-auditoria-no-publicado` con el JSON. Un reinicio controlado (`docker compose restart`) no pierde esos eventos: se reconstruyen desde el log. Catalog no declara `NewTopic` y `spring.kafka.admin.auto-create=false`.
+Si Kafka falla, el HTTP responde normal y los eventos quedan pendientes en el outbox hasta que el relay los publique en orden. Ya no hay cola en memoria ni el límite K2 de publicación directa. Catalog no declara `NewTopic` y `spring.kafka.admin.auto-create=false`. Aplicá `db/schema.sql` (tabla `outbox_events`) en Oracle antes del primer arranque con esta versión.
 
 Variable: `KAFKA_BOOTSTRAP_SERVERS` (local: `localhost:9092`). El health de Kafka está desactivado: Kafka caído no tumba el servicio.
 

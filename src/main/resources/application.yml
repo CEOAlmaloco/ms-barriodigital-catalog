@@ -43,6 +43,10 @@ spring:
         jdbc:
           time_zone: UTC
 
+barriodigital:
+  outbox:
+    relay-delay-ms: 1000
+
 management:
   endpoints:
     web:
@@ -54,6 +58,6 @@ management:
   health:
     db:
       enabled: true
-    # Kafka caído no tumba el health: la auditoría es best-effort.
+    # Kafka caído no tumba el health: los eventos esperan en el outbox.
     kafka:
       enabled: false

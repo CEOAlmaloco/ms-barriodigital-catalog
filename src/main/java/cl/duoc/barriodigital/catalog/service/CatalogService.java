@@ -1,9 +1,8 @@
 package cl.duoc.barriodigital.catalog.service;
 
 import cl.duoc.barriodigital.catalog.domain.ProcedureType;
-import cl.duoc.barriodigital.catalog.messaging.AuditEnvelope;
 import cl.duoc.barriodigital.catalog.messaging.AuditEventFactory;
-import cl.duoc.barriodigital.catalog.messaging.AuditPublisher;
+import cl.duoc.barriodigital.catalog.messaging.AuditOutboxRecorder;
 import cl.duoc.barriodigital.catalog.messaging.ProcedureTypeAuditState;
 import cl.duoc.barriodigital.catalog.persistence.ProcedureTypeRepository;
 import cl.duoc.barriodigital.catalog.web.AdminCaller;
@@ -15,8 +14,6 @@ import org.springframework.dao.DuplicateKeyException;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.transaction.support.TransactionSynchronization;
-import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.sql.SQLException;
@@ -28,7 +25,7 @@ import java.util.regex.Pattern;
 /**
  * Aplica las reglas del catálogo leyendo Oracle en cada llamada.
  * Un tipo creado aparece en la consulta siguiente, sin reiniciar el servicio.
- * Alta y edición publican en audit.timeline después del commit; reserve/release no.
+ * Alta y edición registran el evento en el outbox en la misma transacción; reserve/release no.
  */
 @Service
 public class CatalogService {
@@ -43,21 +40,21 @@ public class CatalogService {
     private final EntityManager entityManager;
     private final Clock clock;
     private final AuditEventFactory auditEvents;
-    private final AuditPublisher auditPublisher;
+    private final AuditOutboxRecorder auditOutbox;
 
-    /** Recibe persistencia, reloj de Chile y el componente de mensajería de auditoría. */
+    /** Recibe persistencia, reloj de Chile y el registrador de outbox de auditoría. */
     public CatalogService(
             ProcedureTypeRepository repository,
             EntityManager entityManager,
             Clock clock,
             AuditEventFactory auditEvents,
-            AuditPublisher auditPublisher
+            AuditOutboxRecorder auditOutbox
     ) {
         this.repository = repository;
         this.entityManager = entityManager;
         this.clock = clock;
         this.auditEvents = auditEvents;
-        this.auditPublisher = auditPublisher;
+        this.auditOutbox = auditOutbox;
     }
 
     /**
@@ -102,7 +99,7 @@ public class CatalogService {
 
         ProcedureType type = new ProcedureType(value, label, active, null, slaBusinessDays, today());
         insertOnly(type);
-        enqueueAudit(auditEvents.create(
+        auditOutbox.record(auditEvents.create(
                 RESOURCE_TYPE,
                 value,
                 "created",
@@ -178,13 +175,12 @@ public class CatalogService {
         Integer dailyQuota = optionalDailyQuota(body.dailyQuota());
         Integer slaBusinessDays = optionalSlaBusinessDays(body.slaBusinessDays());
 
-        ProcedureType current = repository.findById(value)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "El tipo de tramite no existe"));
+        ProcedureType current = lock(value);
         current.resetForToday(today());
         ProcedureTypeAuditState before = ProcedureTypeAuditState.from(current);
         current.updateDetails(label, body.active(), dailyQuota, slaBusinessDays);
         ProcedureType saved = repository.save(current);
-        enqueueAudit(auditEvents.create(
+        auditOutbox.record(auditEvents.create(
                 RESOURCE_TYPE,
                 value,
                 "updated",
@@ -192,23 +188,6 @@ public class CatalogService {
                 ProcedureTypeAuditState.from(saved)
         ));
         return ProcedureView.from(saved);
-    }
-
-    /**
-     * Publica el evento solo cuando el commit ya confirmó el cambio.
-     * Sin sincronización activa (tests unitarios), publica de inmediato.
-     */
-    private void enqueueAudit(AuditEnvelope envelope) {
-        if (TransactionSynchronizationManager.isSynchronizationActive()) {
-            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-                @Override
-                public void afterCommit() {
-                    auditPublisher.publish(envelope);
-                }
-            });
-            return;
-        }
-        auditPublisher.publish(envelope);
     }
 
     /**
