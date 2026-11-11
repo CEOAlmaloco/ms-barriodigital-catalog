@@ -1,7 +1,7 @@
 package cl.duoc.barriodigital.catalog.domain;
 
 import cl.duoc.barriodigital.catalog.messaging.AuditEventFactory;
-import cl.duoc.barriodigital.catalog.messaging.AuditPublisher;
+import cl.duoc.barriodigital.catalog.messaging.AuditOutboxRecorder;
 import cl.duoc.barriodigital.catalog.persistence.ProcedureTypeRepository;
 import cl.duoc.barriodigital.catalog.service.CatalogService;
 import cl.duoc.barriodigital.catalog.web.dto.ProcedureView;
@@ -35,7 +35,7 @@ class LazyQuotaResetTest {
             mock(EntityManager.class),
             CLOCK,
             new AuditEventFactory(CLOCK),
-            mock(AuditPublisher.class)
+            mock(AuditOutboxRecorder.class)
     );
 
     @Test
@@ -81,7 +81,7 @@ class LazyQuotaResetTest {
     void elPutDeUnDiaNuevoNoArrastraElUsoDeAyer() {
         ProcedureType bache = new ProcedureType("bache", "Bache en calle", 10, LocalDate.parse("2026-10-12"));
         bache.consume(8);
-        when(repository.findById("bache")).thenReturn(Optional.of(bache));
+        when(repository.findByValueForUpdate("bache")).thenReturn(Optional.of(bache));
         when(repository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
 
         ProcedureView updated = service.update(

@@ -2,7 +2,7 @@ package cl.duoc.barriodigital.catalog.service;
 
 import cl.duoc.barriodigital.catalog.config.ClockConfig;
 import cl.duoc.barriodigital.catalog.messaging.AuditEventFactory;
-import cl.duoc.barriodigital.catalog.messaging.AuditPublisher;
+import cl.duoc.barriodigital.catalog.messaging.AuditOutboxRecorder;
 import cl.duoc.barriodigital.catalog.persistence.ProcedureTypeRepository;
 import cl.duoc.barriodigital.catalog.web.dto.CreateProcedureRequest;
 import cl.duoc.barriodigital.catalog.web.dto.ProcedureView;
@@ -48,7 +48,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 class CatalogQuotaPersistenceTest {
 
     @MockBean
-    AuditPublisher auditPublisher;
+    AuditOutboxRecorder auditOutbox;
 
     @Autowired
     CatalogService service;

@@ -1,7 +1,7 @@
 package cl.duoc.barriodigital.catalog.domain;
 
 import cl.duoc.barriodigital.catalog.messaging.AuditEventFactory;
-import cl.duoc.barriodigital.catalog.messaging.AuditPublisher;
+import cl.duoc.barriodigital.catalog.messaging.AuditOutboxRecorder;
 import cl.duoc.barriodigital.catalog.persistence.ProcedureTypeRepository;
 import cl.duoc.barriodigital.catalog.service.CatalogService;
 import cl.duoc.barriodigital.catalog.web.dto.ProcedureView;
@@ -36,7 +36,7 @@ class QuotaReserveTest {
             mock(EntityManager.class),
             CLOCK,
             new AuditEventFactory(CLOCK),
-            mock(AuditPublisher.class)
+            mock(AuditOutboxRecorder.class)
     );
 
     @Test

@@ -5,7 +5,7 @@ import cl.duoc.barriodigital.catalog.messaging.ActorContext;
 import cl.duoc.barriodigital.catalog.messaging.AuditActor;
 import cl.duoc.barriodigital.catalog.messaging.AuditEnvelope;
 import cl.duoc.barriodigital.catalog.messaging.AuditEventFactory;
-import cl.duoc.barriodigital.catalog.messaging.AuditPublisher;
+import cl.duoc.barriodigital.catalog.messaging.AuditOutboxRecorder;
 import cl.duoc.barriodigital.catalog.messaging.ProcedureTypeAuditState;
 import cl.duoc.barriodigital.catalog.persistence.ProcedureTypeRepository;
 import cl.duoc.barriodigital.catalog.web.dto.CreateProcedureRequest;
@@ -19,7 +19,6 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
-import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.sql.SQLException;
@@ -51,9 +50,9 @@ class CatalogServiceTest {
     private final ProcedureTypeRepository repository = mock(ProcedureTypeRepository.class);
     private final EntityManager entityManager = mock(EntityManager.class);
     private final AuditEventFactory auditEvents = new AuditEventFactory(CLOCK);
-    private final AuditPublisher auditPublisher = mock(AuditPublisher.class);
+    private final AuditOutboxRecorder auditOutbox = mock(AuditOutboxRecorder.class);
     private final CatalogService service = new CatalogService(
-            repository, entityManager, CLOCK, auditEvents, auditPublisher);
+            repository, entityManager, CLOCK, auditEvents, auditOutbox);
 
     @BeforeEach
     void setActor() {
@@ -61,9 +60,8 @@ class CatalogServiceTest {
     }
 
     @AfterEach
-    void clearTxAndActor() {
+    void clearActor() {
         ActorContext.clear();
-        TransactionSynchronizationManager.clear();
     }
 
     @Test
@@ -221,7 +219,7 @@ class CatalogServiceTest {
     @Test
     void adminEditaEtiquetaActivoYCupoSinCambiarElCodigo() {
         ProcedureType bache = new ProcedureType("bache", "Bache en calle", true, 10, TODAY);
-        when(repository.findById("bache")).thenReturn(Optional.of(bache));
+        when(repository.findByValueForUpdate("bache")).thenReturn(Optional.of(bache));
         when(repository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
 
         ProcedureView updated = service.update(
@@ -241,7 +239,7 @@ class CatalogServiceTest {
     @Test
     void unPutSinCupoDejaElTipoSinLimite() {
         ProcedureType bache = new ProcedureType("bache", "Bache en calle", true, 10, TODAY);
-        when(repository.findById("bache")).thenReturn(Optional.of(bache));
+        when(repository.findByValueForUpdate("bache")).thenReturn(Optional.of(bache));
         when(repository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
 
         ProcedureView updated = service.update(
@@ -258,7 +256,7 @@ class CatalogServiceTest {
     @Test
     void adminEditaElPlazoYUnPutSinPlazoLoBorra() {
         ProcedureType bache = new ProcedureType("bache", "Bache en calle", true, 10, null, TODAY);
-        when(repository.findById("bache")).thenReturn(Optional.of(bache));
+        when(repository.findByValueForUpdate("bache")).thenReturn(Optional.of(bache));
         when(repository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
 
         ProcedureView withSla = service.update(
@@ -282,12 +280,12 @@ class CatalogServiceTest {
                 service.update("bache", new UpdateProcedureRequest("Bache", true, 5, 0, null), "Admin")));
         assertEquals(HttpStatus.BAD_REQUEST, statusOf(() ->
                 service.update("bache", new UpdateProcedureRequest("Bache", true, 5, 121, null), "Admin")));
-        verify(repository, never()).findById(any());
+        verify(repository, never()).findByValueForUpdate(any());
     }
 
     @Test
     void tipoInexistenteResponde404() {
-        when(repository.findById("no-esta")).thenReturn(Optional.empty());
+        when(repository.findByValueForUpdate("no-esta")).thenReturn(Optional.empty());
 
         assertEquals(HttpStatus.NOT_FOUND, statusOf(() ->
                 service.update("no-esta", new UpdateProcedureRequest("Nada", true, 5, null, null), "Admin")));
@@ -298,14 +296,14 @@ class CatalogServiceTest {
     void noSePuedeCambiarElValue() {
         assertEquals(HttpStatus.BAD_REQUEST, statusOf(() ->
                 service.update("bache", new UpdateProcedureRequest("Bache", true, 5, null, "otro"), "Admin")));
-        verify(repository, never()).findById(any());
+        verify(repository, never()).findByValueForUpdate(any());
     }
 
     @Test
     void edicionSinAdminResponde403() {
         assertEquals(HttpStatus.FORBIDDEN, statusOf(() ->
                 service.update("bache", new UpdateProcedureRequest("Bache", true, 5, null, null), "Vecino")));
-        verify(repository, never()).findById(any());
+        verify(repository, never()).findByValueForUpdate(any());
     }
 
     @Test
@@ -316,23 +314,17 @@ class CatalogServiceTest {
                 service.update("bache", new UpdateProcedureRequest("Bache", null, 5, null, null), "Admin")));
         assertEquals(HttpStatus.BAD_REQUEST, statusOf(() ->
                 service.update("bache", new UpdateProcedureRequest("Bache", true, 0, null, null), "Admin")));
-        verify(repository, never()).findById(any());
+        verify(repository, never()).findByValueForUpdate(any());
     }
 
     @Test
-    void altaPublicaProcedureTypeCreatedDespuesDelCommit() {
+    void altaRegistraProcedureTypeCreatedEnOutbox() {
         when(repository.existsById("semaforo")).thenReturn(false);
-        TransactionSynchronizationManager.setActualTransactionActive(true);
-        TransactionSynchronizationManager.initSynchronization();
 
         service.create(new CreateProcedureRequest("semaforo", "Semáforo", true, 5), "Admin");
 
-        verify(auditPublisher, never()).publish(any());
-        assertEquals(1, TransactionSynchronizationManager.getSynchronizations().size());
-        TransactionSynchronizationManager.getSynchronizations().forEach(sync -> sync.afterCommit());
-
         ArgumentCaptor<AuditEnvelope> captor = ArgumentCaptor.forClass(AuditEnvelope.class);
-        verify(auditPublisher).publish(captor.capture());
+        verify(auditOutbox).record(captor.capture());
         AuditEnvelope event = captor.getValue();
         assertEquals("procedure-type.created", event.eventType());
         assertEquals("procedure-type:semaforo", event.key());
@@ -342,12 +334,10 @@ class CatalogServiceTest {
     }
 
     @Test
-    void edicionPublicaProcedureTypeUpdatedConBeforeYAfter() {
+    void edicionRegistraProcedureTypeUpdatedConBeforeYAfter() {
         ProcedureType bache = new ProcedureType("bache", "Bache en calle", true, 20, null, TODAY);
-        when(repository.findById("bache")).thenReturn(Optional.of(bache));
+        when(repository.findByValueForUpdate("bache")).thenReturn(Optional.of(bache));
         when(repository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
-        TransactionSynchronizationManager.setActualTransactionActive(true);
-        TransactionSynchronizationManager.initSynchronization();
 
         service.update(
                 "bache",
@@ -355,11 +345,8 @@ class CatalogServiceTest {
                 "Admin"
         );
 
-        verify(auditPublisher, never()).publish(any());
-        TransactionSynchronizationManager.getSynchronizations().forEach(sync -> sync.afterCommit());
-
         ArgumentCaptor<AuditEnvelope> captor = ArgumentCaptor.forClass(AuditEnvelope.class);
-        verify(auditPublisher).publish(captor.capture());
+        verify(auditOutbox).record(captor.capture());
         AuditEnvelope event = captor.getValue();
         assertEquals("procedure-type.updated", event.eventType());
         assertEquals(new ProcedureTypeAuditState("Bache en calle", true, 20, null), event.payload().before());
@@ -367,24 +354,24 @@ class CatalogServiceTest {
     }
 
     @Test
-    void altaFallidaNoPublicaAuditoria() {
+    void altaFallidaNoRegistraAuditoria() {
         when(repository.existsById("bache")).thenReturn(true);
 
         assertThrows(ResponseStatusException.class, () ->
                 service.create(new CreateProcedureRequest("bache", "Otro", true, null), "Admin"));
 
-        verify(auditPublisher, never()).publish(any());
+        verify(auditOutbox, never()).record(any());
     }
 
     @Test
-    void reserveNoPublicaAuditoria() {
+    void reserveNoRegistraAuditoria() {
         ProcedureType bache = new ProcedureType("bache", "Bache", true, 2, TODAY);
         when(repository.findByValueForUpdate("bache")).thenReturn(Optional.of(bache));
         when(repository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
 
         service.reserve("bache");
 
-        verify(auditPublisher, never()).publish(any());
+        verify(auditOutbox, never()).record(any());
     }
 
     private HttpStatusCode statusOf(Runnable call) {

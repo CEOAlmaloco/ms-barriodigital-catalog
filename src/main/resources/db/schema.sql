@@ -19,3 +19,19 @@ ALTER TABLE procedure_types MODIFY (remaining_quota NULL);
 -- Null en el plazo significa sin plazo hasta que el Admin lo defina (EP3-24).
 -- En una base ya creada sin la columna, agregar:
 -- ALTER TABLE procedure_types ADD (sla_business_days NUMBER(10) NULL);
+
+-- Outbox de auditoría (EP3-68 / mismo patrón EP3-02). Aplicar antes del primer arranque
+-- con esta versión: ddl-auto=update no crea el IDENTITY ORDER ni el índice.
+CREATE TABLE outbox_events (
+    event_id        VARCHAR2(36)  PRIMARY KEY,
+    event_sequence  NUMBER GENERATED ALWAYS AS IDENTITY (ORDER),
+    aggregate_id    VARCHAR2(80)  NOT NULL,
+    event_type      VARCHAR2(60)  NOT NULL,
+    payload         CLOB          NOT NULL,
+    created_at      TIMESTAMP     NOT NULL,
+    published_at    TIMESTAMP     NULL,
+    attempts        NUMBER        DEFAULT 0 NOT NULL,
+    last_error      VARCHAR2(500) NULL
+);
+
+CREATE INDEX idx_outbox_pending ON outbox_events (published_at, event_sequence);
