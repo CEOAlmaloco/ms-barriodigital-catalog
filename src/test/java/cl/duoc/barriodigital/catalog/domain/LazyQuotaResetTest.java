@@ -1,11 +1,11 @@
 package cl.duoc.barriodigital.catalog.domain;
 
-import cl.duoc.barriodigital.catalog.messaging.AuditEventFactory;
-import cl.duoc.barriodigital.catalog.messaging.AuditOutboxRecorder;
-import cl.duoc.barriodigital.catalog.persistence.ProcedureTypeRepository;
-import cl.duoc.barriodigital.catalog.service.CatalogService;
-import cl.duoc.barriodigital.catalog.web.dto.ProcedureView;
-import cl.duoc.barriodigital.catalog.web.dto.UpdateProcedureRequest;
+import cl.duoc.barriodigital.catalog.adapter.out.messaging.AuditEventFactory;
+import cl.duoc.barriodigital.catalog.adapter.out.messaging.AuditOutboxRecorder;
+import cl.duoc.barriodigital.catalog.adapter.out.persistence.ProcedureTypeRepository;
+import cl.duoc.barriodigital.catalog.application.usecase.CatalogService;
+import cl.duoc.barriodigital.catalog.adapter.in.web.dto.ProcedureView;
+import cl.duoc.barriodigital.catalog.adapter.in.web.dto.UpdateProcedureRequest;
 import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.Test;
 
