@@ -1,8 +1,10 @@
 package cl.duoc.barriodigital.catalog.domain;
 
-import cl.duoc.barriodigital.catalog.persistence.ProcedureTypeRepository;
-import cl.duoc.barriodigital.catalog.service.CatalogService;
-import cl.duoc.barriodigital.catalog.web.dto.ProcedureView;
+import cl.duoc.barriodigital.catalog.adapter.out.messaging.AuditEventFactory;
+import cl.duoc.barriodigital.catalog.adapter.out.messaging.AuditOutboxRecorder;
+import cl.duoc.barriodigital.catalog.adapter.out.persistence.ProcedureTypeRepository;
+import cl.duoc.barriodigital.catalog.application.usecase.CatalogService;
+import cl.duoc.barriodigital.catalog.adapter.in.web.dto.ProcedureView;
 import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
@@ -29,7 +31,13 @@ class QuotaReserveTest {
     private static final LocalDate TODAY = LocalDate.parse("2026-10-13");
 
     private final ProcedureTypeRepository repository = mock(ProcedureTypeRepository.class);
-    private final CatalogService service = new CatalogService(repository, mock(EntityManager.class), CLOCK);
+    private final CatalogService service = new CatalogService(
+            repository,
+            mock(EntityManager.class),
+            CLOCK,
+            new AuditEventFactory(CLOCK),
+            mock(AuditOutboxRecorder.class)
+    );
 
     @Test
     void reservarEnUnDiaNuevoReponeYDespuesDescuenta() {

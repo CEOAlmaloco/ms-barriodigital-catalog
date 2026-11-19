@@ -1,9 +1,11 @@
 package cl.duoc.barriodigital.catalog.domain;
 
-import cl.duoc.barriodigital.catalog.persistence.ProcedureTypeRepository;
-import cl.duoc.barriodigital.catalog.service.CatalogService;
-import cl.duoc.barriodigital.catalog.web.dto.ProcedureView;
-import cl.duoc.barriodigital.catalog.web.dto.UpdateProcedureRequest;
+import cl.duoc.barriodigital.catalog.adapter.out.messaging.AuditEventFactory;
+import cl.duoc.barriodigital.catalog.adapter.out.messaging.AuditOutboxRecorder;
+import cl.duoc.barriodigital.catalog.adapter.out.persistence.ProcedureTypeRepository;
+import cl.duoc.barriodigital.catalog.application.usecase.CatalogService;
+import cl.duoc.barriodigital.catalog.adapter.in.web.dto.ProcedureView;
+import cl.duoc.barriodigital.catalog.adapter.in.web.dto.UpdateProcedureRequest;
 import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.Test;
 
@@ -28,7 +30,13 @@ class LazyQuotaResetTest {
     private static final LocalDate TODAY = LocalDate.parse("2026-10-13");
 
     private final ProcedureTypeRepository repository = mock(ProcedureTypeRepository.class);
-    private final CatalogService service = new CatalogService(repository, mock(EntityManager.class), CLOCK);
+    private final CatalogService service = new CatalogService(
+            repository,
+            mock(EntityManager.class),
+            CLOCK,
+            new AuditEventFactory(CLOCK),
+            mock(AuditOutboxRecorder.class)
+    );
 
     @Test
     void elPrimerGetDeUnDiaNuevoReponeElCupoYLoGuarda() {
@@ -73,12 +81,12 @@ class LazyQuotaResetTest {
     void elPutDeUnDiaNuevoNoArrastraElUsoDeAyer() {
         ProcedureType bache = new ProcedureType("bache", "Bache en calle", 10, LocalDate.parse("2026-10-12"));
         bache.consume(8);
-        when(repository.findById("bache")).thenReturn(Optional.of(bache));
+        when(repository.findByValueForUpdate("bache")).thenReturn(Optional.of(bache));
         when(repository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
 
         ProcedureView updated = service.update(
                 "bache",
-                new UpdateProcedureRequest("Bache en calle", true, 10, null),
+                new UpdateProcedureRequest("Bache en calle", true, 10, null, null),
                 "Admin"
         );
 

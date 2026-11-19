@@ -16,7 +16,7 @@ class ProcedureTypeTest {
         ProcedureType type = new ProcedureType("bache", "Bache en calle", true, 10, LocalDate.parse("2026-10-09"));
         type.consume(6);
 
-        type.updateDetails("Bache grave", false, 8);
+        type.updateDetails("Bache grave", false, 8, null);
 
         assertEquals("bache", type.getValue());
         assertEquals("Bache grave", type.getLabel());
@@ -30,7 +30,7 @@ class ProcedureTypeTest {
         ProcedureType type = new ProcedureType("bache", "Bache en calle", 10, LocalDate.parse("2026-10-09"));
         type.consume(6);
 
-        type.updateDetails("Bache", true, 3);
+        type.updateDetails("Bache", true, 3, null);
 
         assertEquals(3, type.getDailyQuota());
         assertEquals(0, type.getRemainingQuota());
@@ -67,10 +67,22 @@ class ProcedureTypeTest {
         ProcedureType type = new ProcedureType("bache", "Bache en calle", 10, LocalDate.parse("2026-10-13"));
         type.consume(4);
 
-        type.updateDetails("Bache en calle", true, null);
+        type.updateDetails("Bache en calle", true, null, null);
 
         assertNull(type.getDailyQuota());
         assertNull(type.getRemainingQuota());
+        assertNull(type.getSlaBusinessDays());
+    }
+
+    @Test
+    void unPutConPlazoLoGuardaYSinPlazoLoBorra() {
+        ProcedureType type = new ProcedureType("bache", "Bache en calle", 10, LocalDate.parse("2026-10-13"));
+
+        type.updateDetails("Bache en calle", true, 10, 5);
+        assertEquals(5, type.getSlaBusinessDays());
+
+        type.updateDetails("Bache en calle", true, 10, null);
+        assertNull(type.getSlaBusinessDays());
     }
 
     @Test

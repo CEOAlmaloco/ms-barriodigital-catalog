@@ -10,6 +10,7 @@ import java.time.LocalDate;
 /**
  * Fila de un tipo de trámite. El código no se cambia porque requests ya lo usa.
  * Si hay cupo, se repone cada día en hora de Chile y baja en reserve al admitir; dailyQuota null significa sin límite.
+ * slaBusinessDays null significa sin plazo hasta que el Admin lo defina.
  */
 @Entity
 @Table(name = "procedure_types")
@@ -34,26 +35,45 @@ public class ProcedureType {
     @Column(name = "quota_reset_date", nullable = false)
     private LocalDate quotaResetDate;
 
+    @Column(name = "sla_business_days")
+    private Integer slaBusinessDays;
+
     /** Lo usa JPA para instanciar la entidad sin argumentos. */
     protected ProcedureType() {
         // JPA
     }
 
-    /** Crea un tipo activo. dailyQuota null lo deja sin límite. */
+    /** Crea un tipo activo. dailyQuota null lo deja sin límite; el plazo queda sin definir. */
     public ProcedureType(String value, String label, Integer dailyQuota, LocalDate quotaResetDate) {
-        this(value, label, true, dailyQuota, quotaResetDate);
+        this(value, label, true, dailyQuota, null, quotaResetDate);
     }
 
     /**
-     * Crea un tipo y copia el cupo del día en el restante.
+     * Crea un tipo y copia el cupo del día en el restante. El plazo queda sin definir.
      * Con dailyQuota null, remainingQuota también queda null porque no hay límite que contar.
      */
     public ProcedureType(String value, String label, boolean active, Integer dailyQuota, LocalDate quotaResetDate) {
+        this(value, label, active, dailyQuota, null, quotaResetDate);
+    }
+
+    /**
+     * Crea un tipo con cupo y plazo opcionales.
+     * Con dailyQuota null, remainingQuota también queda null. slaBusinessDays null deja el tipo sin plazo.
+     */
+    public ProcedureType(
+            String value,
+            String label,
+            boolean active,
+            Integer dailyQuota,
+            Integer slaBusinessDays,
+            LocalDate quotaResetDate
+    ) {
         this.value = value;
         this.label = label;
         this.active = active;
         this.dailyQuota = dailyQuota;
         this.remainingQuota = dailyQuota;
+        this.slaBusinessDays = slaBusinessDays;
         this.quotaResetDate = quotaResetDate;
     }
 
@@ -82,6 +102,11 @@ public class ProcedureType {
         return remainingQuota;
     }
 
+    /** Plazo de atención en días hábiles. Null significa sin plazo. */
+    public Integer getSlaBusinessDays() {
+        return slaBusinessDays;
+    }
+
     /** Cambia solo el texto visible. No toca el cupo, para corregir una etiqueta sin alterar el conteo. */
     public void replaceLabel(String label) {
         this.label = label;
@@ -93,12 +118,14 @@ public class ProcedureType {
     }
 
     /**
-     * Cambia nombre, estado activo y cupo; el código no se toca.
-     * dailyQuota null deja el tipo sin límite. Si ya se usaron cupos hoy, esos usos se conservan.
+     * Cambia nombre, estado activo, cupo y plazo; el código no se toca.
+     * dailyQuota null deja el tipo sin límite. slaBusinessDays null deja el tipo sin plazo.
+     * Si ya se usaron cupos hoy, esos usos se conservan.
      */
-    public void updateDetails(String label, boolean active, Integer dailyQuota) {
+    public void updateDetails(String label, boolean active, Integer dailyQuota, Integer slaBusinessDays) {
         this.label = label;
         this.active = active;
+        this.slaBusinessDays = slaBusinessDays;
         if (dailyQuota == null) {
             this.dailyQuota = null;
             this.remainingQuota = null;

@@ -11,6 +11,16 @@ spring:
     name: ms-barriodigital-catalog
   config:
     import: optional:file:.env[.properties]
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    # Solo kafka-admin crea topics. Catalog no declara NewTopic.
+    admin:
+      auto-create: false
+  jackson:
+    deserialization:
+      accept-float-as-int: false
+    mapper:
+      allow-coercion-of-scalars: false
   datasource:
     url: ${ORACLE_URL}
     username: ${ORACLE_USER}
@@ -33,6 +43,10 @@ spring:
         jdbc:
           time_zone: UTC
 
+barriodigital:
+  outbox:
+    relay-delay-ms: 1000
+
 management:
   endpoints:
     web:
@@ -44,3 +58,6 @@ management:
   health:
     db:
       enabled: true
+    # Kafka caído no tumba el health: los eventos esperan en el outbox.
+    kafka:
+      enabled: false
