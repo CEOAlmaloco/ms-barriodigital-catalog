@@ -1,0 +1,77 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "procedure-type.created v1",
+  "allOf": [
+    {
+      "$ref": "envelope.schema.json"
+    }
+  ],
+  "properties": {
+    "eventType": {
+      "const": "procedure-type.created"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "payload": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "resourceType",
+        "resourceId",
+        "action",
+        "before",
+        "after"
+      ],
+      "properties": {
+        "resourceType": {
+          "const": "procedure-type"
+        },
+        "resourceId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "action": {
+          "const": "created"
+        },
+        "before": {
+          "type": "null"
+        },
+        "after": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "label",
+            "active",
+            "dailyQuota",
+            "slaBusinessDays"
+          ],
+          "properties": {
+            "label": {
+              "type": "string",
+              "minLength": 1
+            },
+            "active": {
+              "type": "boolean"
+            },
+            "dailyQuota": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 0
+            },
+            "slaBusinessDays": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 1
+            }
+          }
+        }
+      }
+    }
+  },
+  "unevaluatedProperties": false
+}
