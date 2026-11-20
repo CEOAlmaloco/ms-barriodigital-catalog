@@ -4,11 +4,9 @@ Catálogo de **tipos de trámite** (BarrioDigital).
 
 Puerto: **8082**
 
-
-<!-- EP3.5-01 contratos -->
 ## Contratos
 
-Contratos vigentes en `barriodigital-infra` (EP3.5-01). Índice: [docs/contratos](https://github.com/CEOAlmaloco/barriodigital-infra/blob/develop/docs/contratos/README.md).
+Contratos vigentes en `barriodigital-infra` ([índice](https://github.com/CEOAlmaloco/barriodigital-infra/blob/develop/docs/contratos/README.md)):
 
 - [Tipos de trámite](https://github.com/CEOAlmaloco/barriodigital-infra/blob/develop/docs/contratos/catalog-tipos.md)
 - [Cupos diarios](https://github.com/CEOAlmaloco/barriodigital-infra/blob/develop/docs/contratos/catalog-cupos.md)
