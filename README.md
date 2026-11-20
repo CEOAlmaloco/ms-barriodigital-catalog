@@ -4,6 +4,14 @@ Catálogo de **tipos de trámite** (BarrioDigital).
 
 Puerto: **8082**
 
+## Contratos
+
+Contratos vigentes en `barriodigital-infra` ([índice](https://github.com/CEOAlmaloco/barriodigital-infra/blob/develop/docs/contratos/README.md)):
+
+- [Tipos de trámite](https://github.com/CEOAlmaloco/barriodigital-infra/blob/develop/docs/contratos/catalog-tipos.md)
+- [Cupos diarios](https://github.com/CEOAlmaloco/barriodigital-infra/blob/develop/docs/contratos/catalog-cupos.md)
+- [Cupo nulo / día Chile](https://github.com/CEOAlmaloco/barriodigital-infra/blob/develop/docs/contratos/catalog-cupos-chile.md)
+
 ## Persistencia (EP1.5-09)
 
 Oracle Autonomous, el mismo patrón que `ms-barriodigital-requests`: `.env` local, wallet fuera del repo, Hibernate con `ddl-auto: update`.
